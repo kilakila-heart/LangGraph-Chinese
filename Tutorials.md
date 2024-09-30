@@ -6,7 +6,7 @@
 
 通过一个完整的快速入门学习LangGraph的基础，你将可以从零开始构建一个agent.
 
-- [快速入门](Quick Start.md)
+- [快速入门](QuickStart.md)
 
 ## 用户案例[¶](https://langchain-ai.github.io/langgraph/tutorials/#use-cases)
 
