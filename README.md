@@ -42,7 +42,6 @@ pip install langchain-anthropic
 export ANTHROPIC_API_KEY=sk-...
 ```
 
-Optionally, we can set up [LangSmith](https://docs.smith.langchain.com/) for best-in-class observability.
 
 同时，我们可以设置[LangSmith](https://docs.smith.langchain.com/) ，以实现最佳的观察体验。
 
