@@ -120,15 +120,12 @@ graph_builder.add_edge(START, "chatbot")
 graph_builder.add_edge("chatbot", END)
 ```
 
-Finally, we'll want to be able to run our graph. To do so, call "`compile()`" on the graph builder. This creates a "`CompiledGraph`" we can use invoke on our state.
 最后，我们想要运行我们的graph，这么做，调用graph builder的"`compile()`" 函数。这就是创建 "`CompiledGraph（编译过的graph）`"我们可以在我们的state上调用。
 
 
 ```python
 graph = graph_builder.compile()
 ```
-
-You can visualize the graph using the `get_graph` method and one of the "draw" methods, like `draw_ascii` or `draw_png`. The `draw` methods each require additional dependencies.
 
 你可以可视化的看到graph的样子，用像是`draw_ascii` 或 `draw_png`库的 `get_graph` 方法和其中一个"draw"方法
 
@@ -401,7 +398,7 @@ except Exception:
     pass
 ```
 
-<img src=".\images\chatbot_tools_flow.png" alt="带有tools的graph流程" style="zoom:80%;" align="left" />
+<img src=".\images\chatbot_tools_flow.png" alt="带有tools的graph流程" style="zoom:80%;" />
 
 现在我们可以问一些不在与训练过的数据的相关问题了。
 
