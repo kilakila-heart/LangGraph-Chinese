@@ -1,7 +1,8 @@
 # How-to guides(操作指南)
 [官网](https://langchain-ai.github.io/langgraph/how-tos/#how-to-guides)
 
-Welcome to the LangGraph how-to guides! These guides provide practical, step-by-step instructions for accomplishing key tasks in LangGraph.
+注意：TODO 本人目前重点关注了stream章节，其他的尚未完成，请先关注官网
+
 欢迎来到LangGraph的操作指南，本指南提供实用的，一步一步的介绍来完成LangGraph中的关键任务。
 
 ## 可控性
@@ -54,7 +55,7 @@ One of LangGraph's main benefits is that it makes human-in-the-loop workflows ea
 
 LangGraph首先被构建为流式交互。本指南展示怎样使用不同的流式streaming模式。
 
-- [怎样流式处理完整的graph状态state](#How-to-stream-full-state-of-your-graph)
+- [怎样流式处理完整的graph状态state](#steam1)
 - [怎样使用updates模式流式处理graph状态](#How-to-stream-state-updates-of-your-graph)
 - [怎样于大模型进行steam处理](#How-to-stream-LLM-tokens-from-your-graph)
 - [怎样在没有Langchain模型下于大模型进行steam处理](https://langchain-ai.github.io/langgraph/how-tos/streaming-tokens-without-langchain/)
@@ -68,8 +69,8 @@ LangGraph首先被构建为流式交互。本指南展示怎样使用不同的�
 
 
 
-###  怎样流式处理完整的graph状态（values） {#How-to-stream-full-state-of-your-graph}
-
+### 怎样流式处理完整的graph状态（values） 
+<a id='steam1'></a>
 [源文档：How to stream full state of your graph](https://langchain-ai.github.io/langgraph/how-tos/stream-values/#how-to-stream-full-state-of-your-graph)
 
 LangGraph支持多种流模式。主要的有:
@@ -147,20 +148,20 @@ async for chunk in graph.astream(inputs, stream_mode="values"):
     chunk["messages"][-1].pretty_print()
 ```
 ```text
-================================[1m Human Message [0m=================================
+================================[1m Human Message [0m=================================
 
 what's the weather in sf
-==================================[1m Ai Message [0m==================================
+==================================[1m Ai Message [0m==================================
 Tool Calls:
   get_weather (call_61VvIzqVGtyxcXi0z6knZkjZ)
  Call ID: call_61VvIzqVGtyxcXi0z6knZkjZ
   Args:
     city: sf
-=================================[1m Tool Message [0m=================================
+=================================[1m Tool Message [0m=================================
 Name: get_weather
 
 It's always sunny in sf
-==================================[1m Ai Message [0m==================================
+==================================[1m Ai Message [0m==================================
 
 The weather in San Francisco is currently sunny.
 ```
@@ -186,14 +187,15 @@ final_result["messages"][-1].pretty_print()
 ```
 
 ```tex
-==================================[1m Ai Message [0m==================================
+==================================[1m Ai Message [0m==================================
 
 The weather in San Francisco is currently sunny. Enjoy the sunshine!
 ```
 
 
 
-###  怎样流式处理graph的状态更新(updates) {#How-to-stream-state-updates-of-your-graph}
+###  怎样流式处理graph的状态更新(updates) 
+<a id="How-to-stream-state-updates-of-your-graph"></a>
 
  [源文档How to stream state updates of your graph](https://langchain-ai.github.io/langgraph/how-tos/stream-updates/#how-to-stream-state-updates-of-your-graph)
 
@@ -285,9 +287,10 @@ Receiving update from node: 'agent'
 
 
 
-###  怎样在你的graph中使用流式输出LLM大模型的tokens {#How-to-stream-LLM-tokens-from-your-graph}
+###  怎样在你的graph中使用流式输出LLM大模型的tokens 
+<a id="How-to-stream-LLM-tokens-from-your-graph"></a>
 [参考源文档： How to stream LLM tokens from your graph](https://langchain-ai.github.io/langgraph/how-tos/streaming-tokens/#how-to-stream-llm-tokens-from-your-graph)
-In this example we will stream tokens from the language model powering an agent. We will use a ReAct agent as an example.
+
 在本例子中我们将流式输出大语言模型的tokens来增强agent。我们将使用ReAct模式的agent作为例子。
 
 本指南紧跟着本目录中的其他指南，所以我们将用下面的STREAMING标签指出不同之处（如果你只是想搜索他们的差异）
@@ -391,12 +394,11 @@ tool_node = ToolNode(tools)
 #### 设置大模型model
 [参考文档：Set up the model](https://langchain-ai.github.io/langgraph/how-tos/streaming-tokens/#set-up-the-model)
 
-Now we need to load the chat model we want to use. This should satisfy two criteria:
 
-现在我们需要加载我们想使用的大模型。这应该满足两个标注：
+现在我们需要加载我们想使用的大模型。这应该满足两个条件：
 
- 1.它应该能处理消息messages，因为我们的状态state主要由消息列表messages构成（聊天历史）
- 2.它应能处理工具调用，因为我们使用了预构建的[ToolNode](https://langchain-ai.github.io/langgraph/reference/prebuilt/#toolnode)
+ 1. 它应该能处理消息messages，因为我们的状态state主要由消息列表messages构成（聊天历史）
+ 2. 它应能处理工具调用，因为我们使用了预构建的[ToolNode](https://langchain-ai.github.io/langgraph/reference/prebuilt/#toolnode)
 
 **注意:** 模型依赖不是使用LangGraph必须的。 —— 它们只是这个特殊例子的要求。
 
@@ -408,7 +410,6 @@ model = ChatOpenAI(model="gpt-3.5-turbo")
 
 **API 参考:** [ChatOpenAI](https://python.langchain.com/api_reference/openai/chat_models/langchain_openai.chat_models.base.ChatOpenAI.html)
 
-After we've done this, we should make sure the model knows that it has these tools available to call. We can do this by converting the LangChain tools into the format for function calling, and then bind them to the model class.
 
 我们做完这步后，我们应该确保大模型知道它由这些工具可以调用。我们可以用覆盖langchian工具转换成函数调用的格式实现这一点，然后将他们绑定到mode的类上，如下代码：
 
@@ -419,17 +420,7 @@ model = model.bind_tools(tools)
 #### 定义节点nodes
 [参考：Define the nodes](https://langchain-ai.github.io/langgraph/how-tos/streaming-tokens/#define-the-nodes)
 
-We now need to define a few different nodes in our graph. In `langgraph`, a node can be either a function or a [runnable](https://python.langchain.com/docs/concepts/#langchain-expression-language-lcel). There are two main nodes we need for this:
 
-1. The agent: responsible for deciding what (if any) actions to take.
-2. A function to invoke tools: if the agent decides to take an action, this node will then execute that action.
-
-We will also need to define some edges. Some of these edges may be conditional. The reason they are conditional is that based on the output of a node, one of several paths may be taken. The path that is taken is not known until that node is run (the LLM decides).
-
-1. Conditional Edge: after the agent is called, we should either: a. If the agent said to take an action, then the function to invoke tools should be called b. If the agent said that it was finished, then it should finish
-2. Normal Edge: after the tools are invoked, it should always go back to the agent to decide what to do next
-
-Let's define the nodes, as well as a function to decide how what conditional edge to take.
 
 现在我们需要在我们的graph中定义几个不同的节点，在`langgraph`中，一个节点可以是一个函数，也可以是一个[runnable](https://python.langchain.com/docs/concepts/#langchain-expression-language-lcel). 这里我们需要两个主要的节点：
 
