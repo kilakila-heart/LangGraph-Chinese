@@ -157,7 +157,7 @@ final_state["messages"][-1].content
 # [文档](https://langchain-ai.github.io/langgraph/#documentation)
 
 - [教程](Tutorials.md):  通过学习指引的例子构建LangGraph。
-- [操作指南](https://langchain-ai.github.io/langgraph/how-tos/): 
+- [操作指南](HowtoGuides.md): 
   利用LangGraph中的流、添加记忆和持久化功能，利用通用的设计模式（分支、子图等等）完成特定的事情，这是一个你可以去复制和运行指定的代码片段的地方。
 - [概念导航](https://langchain-ai.github.io/langgraph/concepts/high_level/): 深入解释LangGraph背后的关键概念和原理，如节点(nodes)、边(edges)、状态(state )等。
 - [API 文档](https://langchain-ai.github.io/langgraph/reference/graphs/): 

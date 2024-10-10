@@ -762,8 +762,240 @@ graph = graph_builder.compile(checkpointer=memory)
 
 
 
-## Part 4:人工介入
-
-待翻译。
+## Part 4:人工参与
 
 官方文档：https://langchain-ai.github.io/langgraph/tutorials/introduction/#part-4-human-in-the-loop
+
+
+
+Agent可能变得不靠谱且有时候需要人工输入才能成功的完成任务。同样，对有些执行动作（action），在运行前你可能需要人工审批来确保能按照计划运行。
+
+
+
+LangGraph以多种形式支持这种`human-in-the-loop（人工参与）`的工作流程 。这本章节、我们将用LangGraph的`interrupt_before`函数来中断工具节点。
+
+
+
+首先，利用我们已经存在的代码。下面这段代码都复制于Part 3。
+
+```python
+from typing import Annotated
+
+from langchain_anthropic import ChatAnthropic
+from langchain_community.tools.tavily_search import TavilySearchResults
+from typing_extensions import TypedDict
+
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import StateGraph, START
+from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode, tools_condition
+
+memory = MemorySaver()
+
+
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+
+
+graph_builder = StateGraph(State)
+
+
+tool = TavilySearchResults(max_results=2)
+tools = [tool]
+llm = ChatAnthropic(model="claude-3-5-sonnet-20240620")
+llm_with_tools = llm.bind_tools(tools)
+
+
+def chatbot(state: State):
+    return {"messages": [llm_with_tools.invoke(state["messages"])]}
+
+
+graph_builder.add_node("chatbot", chatbot)
+
+tool_node = ToolNode(tools=[tool])
+graph_builder.add_node("tools", tool_node)
+
+graph_builder.add_conditional_edges(
+    "chatbot",
+    tools_condition,
+)
+graph_builder.add_edge("tools", "chatbot")
+graph_builder.add_edge(START, "chatbot")
+```
+
+现在，编译graph，指定tools 作为`interrupt_before`的参数。
+
+```python
+graph = graph_builder.compile(
+    checkpointer=memory,
+    # This is new!
+    interrupt_before=["tools"],
+    # Note: can also interrupt __after__ tools, if desired.
+    # interrupt_after=["tools"]
+)
+```
+
+
+
+```python
+user_input = "I'm learning LangGraph. Could you do some research on it for me?"
+config = {"configurable": {"thread_id": "1"}}
+# The config is the **second positional argument** to stream() or invoke()!
+events = graph.stream(
+    {"messages": [("user", user_input)]}, config, stream_mode="values"
+)
+for event in events:
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
+```
+
+```tex
+
+================================ Human Message =================================
+
+I'm learning LangGraph. Could you do some research on it for me?
+================================== Ai Message ==================================
+
+[{'text': "Certainly! I'd be happy to research LangGraph for you. To get the most up-to-date and comprehensive information, I'll use the Tavily search engine to look this up. Let me do that for you now.", 'type': 'text'}, {'id': 'toolu_01R4ZFcb5hohpiVZwr88Bxhc', 'input': {'query': 'LangGraph framework for building language model applications'}, 'name': 'tavily_search_results_json', 'type': 'tool_use'}]
+Tool Calls:
+  tavily_search_results_json (toolu_01R4ZFcb5hohpiVZwr88Bxhc)
+ Call ID: toolu_01R4ZFcb5hohpiVZwr88Bxhc
+  Args:
+    query: LangGraph framework for building language model applications
+```
+
+让我们检查graph的状态来确认它是否正常工作。
+
+```python
+snapshot = graph.get_state(config)
+snapshot.next
+```
+
+('tools',)
+
+**注意**与上次不同，这次的“next”节点被设置**'tools'** 。我们已经在这里中断了，让我们检查下tool的调用。
+
+
+
+```python
+existing_message = snapshot.values["messages"][-1]
+existing_message.tool_calls
+```
+
+> [{'name': 'tavily_search_results_json',  'args': {'query': 'LangGraph framework for building language model applications'},  'id': 'toolu_01R4ZFcb5hohpiVZwr88Bxhc',  'type': 'tool_call'}]
+
+这个查询似乎是合理的。这里没有什么需要被过滤。这里人为参与最简单的事情就是让graph继续执行下去，下面就这么做吧。
+
+
+
+接下来，继续执行graph！传入 `None`就能让graph从它离开的地方继续执行，且不会给garph添加新的状态。 
+
+```python
+# `None` will append nothing new to the current state, letting it resume as if it had never been interrupted
+events = graph.stream(None, config, stream_mode="values")
+for event in events:
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
+```
+
+```tex
+================================== Ai Message ==================================
+
+[{'text': "Certainly! I'd be happy to research LangGraph for you. To get the most up-to-date and comprehensive information, I'll use the Tavily search engine to look this up. Let me do that for you now.", 'type': 'text'}, {'id': 'toolu_01R4ZFcb5hohpiVZwr88Bxhc', 'input': {'query': 'LangGraph framework for building language model applications'}, 'name': 'tavily_search_results_json', 'type': 'tool_use'}]
+Tool Calls:
+  tavily_search_results_json (toolu_01R4ZFcb5hohpiVZwr88Bxhc)
+ Call ID: toolu_01R4ZFcb5hohpiVZwr88Bxhc
+  Args:
+    query: LangGraph framework for building language model applications
+================================= Tool Message =================================
+Name: tavily_search_results_json
+
+[{"url": "https://towardsdatascience.com/from-basics-to-advanced-exploring-langgraph-e8c1cf4db787", "content": "LangChain is one of the leading frameworks for building applications powered by Lardge Language Models. With the LangChain Expression Language (LCEL), defining and executing step-by-step action sequences — also known as chains — becomes much simpler. In more technical terms, LangChain allows us to create DAGs (directed acyclic graphs). As LLM applications, particularly LLM agents, have ..."}, {"url": "https://github.com/langchain-ai/langgraph", "content": "Overview. LangGraph is a library for building stateful, multi-actor applications with LLMs, used to create agent and multi-agent workflows. Compared to other LLM frameworks, it offers these core benefits: cycles, controllability, and persistence. LangGraph allows you to define flows that involve cycles, essential for most agentic architectures ..."}]
+================================== Ai Message ==================================
+
+Thank you for your patience. I've found some valuable information about LangGraph for you. Let me summarize the key points:
+
+1. LangGraph is a library for building stateful, multi-actor applications with Large Language Models (LLMs).
+
+2. It is particularly useful for creating agent and multi-agent workflows.
+
+3. LangGraph is built on top of LangChain, which is one of the leading frameworks for building LLM-powered applications.
+
+4. Key benefits of LangGraph compared to other LLM frameworks include:
+   a) Cycles: It allows you to define flows that involve cycles, which is essential for most agent architectures.
+   b) Controllability: Offers more control over the application flow.
+   c) Persistence: Provides ways to maintain state across interactions.
+
+5. LangGraph works well with the LangChain Expression Language (LCEL), which simplifies the process of defining and executing step-by-step action sequences (chains).
+
+6. In technical terms, LangGraph enables the creation of Directed Acyclic Graphs (DAGs) for LLM applications.
+
+7. It's particularly useful for building more complex LLM agents and multi-agent systems.
+
+LangGraph seems to be an advanced tool that builds upon LangChain to provide more sophisticated capabilities for creating stateful and multi-actor LLM applications. It's especially valuable if you're looking to create complex agent systems or applications that require maintaining state across interactions.
+
+Is there any specific aspect of LangGraph you'd like to know more about? I'd be happy to dive deeper into any particular area of interest.
+```
+
+
+查看此调用的[LangSmith trace](https://smith.langchain.com/public/4d7f8757-9d3b-43b9-88b6-aeab0595bc4c/r)，来查看上述调用中完整详细的工作内容。注意状态state在第一步中被加载，你的聊天机器人才能从它停止的地方继续执行。
+
+恭喜，你已经能用`interrupt`来向你的聊天机器人添加人工参执行程序了，且允许在需要的时候人工参和干预。你能在创建你的AI系统时候，打开潜在的UI界面。自从我们添加了checkpointer之后，graph能在任何时候被暂停和恢复，就像任何事情都没有发生一样。
+
+接下来，我们将探索如何用通过自定义状态更新来更进一步定制机器人的行为.
+
+下面是复制你在这个章节使用过的代码。这仅与上一章节不同之处在于添加了`interrupt_before`参数。
+
+### 完整代码
+```python
+from typing import Annotated
+
+from langchain_anthropic import ChatAnthropic
+from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_core.messages import BaseMessage
+from typing_extensions import TypedDict
+
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import StateGraph
+from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode, tools_condition
+
+
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+
+
+graph_builder = StateGraph(State)
+
+
+tool = TavilySearchResults(max_results=2)
+tools = [tool]
+llm = ChatAnthropic(model="claude-3-5-sonnet-20240620")
+llm_with_tools = llm.bind_tools(tools)
+
+
+def chatbot(state: State):
+    return {"messages": [llm_with_tools.invoke(state["messages"])]}
+
+
+graph_builder.add_node("chatbot", chatbot)
+
+tool_node = ToolNode(tools=[tool])
+graph_builder.add_node("tools", tool_node)
+
+graph_builder.add_conditional_edges(
+    "chatbot",
+    tools_condition,
+)
+graph_builder.add_edge("tools", "chatbot")
+graph_builder.set_entry_point("chatbot")
+
+memory = MemorySaver()
+graph = graph_builder.compile(
+    checkpointer=memory,
+    # This is new!
+    interrupt_before=["tools"],
+    # Note: can also interrupt __after__ actions, if desired.
+    # interrupt_after=["tools"]
+)
+```
