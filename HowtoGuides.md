@@ -57,8 +57,8 @@ LangGraph首先被构建为流式交互。本指南展示怎样使用不同的�
 
 - [怎样流式处理完整的graph状态state](#steam1)
 - [怎样使用updates模式流式处理graph状态](#How-to-stream-state-updates-of-your-graph)
-- [怎样于大模型进行steam处理](#How-to-stream-LLM-tokens-from-your-graph)
-- [怎样在没有Langchain模型下于大模型进行steam处理](https://langchain-ai.github.io/langgraph/how-tos/streaming-tokens-without-langchain/)
+- [怎样在大模型流式输出tokens](#How-to-stream-LLM-tokens-from-your-graph)
+- [怎样在不用Langchain大模型API下对大模型进行steam输出](https://langchain-ai.github.io/langgraph/how-tos/streaming-tokens-without-langchain/)
 - [怎样steam传输自定义数据](https://langchain-ai.github.io/langgraph/how-tos/streaming-content/)
 - [怎样同时配置多steam式传输](https://langchain-ai.github.io/langgraph/how-tos/stream-multiple/)
 - [How to stream events from within a tool](https://langchain-ai.github.io/langgraph/how-tos/streaming-events-from-within-tools/)
@@ -287,7 +287,7 @@ Receiving update from node: 'agent'
 
 
 
-###  怎样在你的graph中使用流式输出LLM大模型的tokens 
+###  怎样在你的graph中流式输出大模型(LLM)的tokens 
 <a id="How-to-stream-LLM-tokens-from-your-graph"></a>
 [参考源文档： How to stream LLM tokens from your graph](https://langchain-ai.github.io/langgraph/how-tos/streaming-tokens/#how-to-stream-llm-tokens-from-your-graph)
 
@@ -303,7 +303,7 @@ Receiving update from node: 'agent'
 
 关于 Python < 3.11的说明
 
->When using python 3.8, 3.9, or 3.10, please ensure you manually pass the RunnableConfig through to the llm when invoking it like so: llm.ainvoke(..., config). The stream method collects all events from your nested code using a streaming tracer passed as a callback. In 3.11 and above, this is automatically handled via contextvar's; prior to 3.11, asyncio's tasks lacked proper contextvar support, meaning that the callbacks will only propagate if you manually pass the config through. We do this in the call_model method below.
+>当你使用的python版本是3.8，3.9或者3.10时，请确保当调用大模型时需要手动传入RunnableConfig 给它，例如：llm.ainvoke(...,config).这个流式方法从你嵌套的代码中用流式追踪器传递给回调函数来搜集了所有的事件。在3.11及以上版本中，是通过contextvar自动处理的，在3.11之前，asyncio的任务缺乏适当的contextvar支持，这意味着回调只有在您手动传递配置时才会传播。我们在下面的call_model方法中实现了这一点。
 
 #### 准备
 我们首先安装依赖包
@@ -361,7 +361,7 @@ class State(TypedDict):
 [参考文档：Set up the tools](https://langchain-ai.github.io/langgraph/how-tos/streaming-tokens/#set-up-the-tools)
 
 
-我们首先定义我们想使用的工具。对这个简单例子，我们将创建一个模拟的搜索引擎。这能简单的创建你自己的工具。——看[这里](https://python.langchain.com/docs/how_to/custom_tools)的文档是怎么做的。
+首先定义我们想使用的工具。对这个简单例子，我们将创建一个模拟的搜索引擎。这能简单的创建你自己的工具——看[这里](https://python.langchain.com/docs/how_to/custom_tools)的文档是怎么做的。
 
 ```python
 from langchain_core.tools import tool
@@ -379,7 +379,7 @@ tools = [search]
 
 **API 参考:** [tool](https://python.langchain.com/api_reference/core/tools/langchain_core.tools.convert.tool.html)
 
-我们现在能用简单的 [ToolNode](https://langchain-ai.github.io/langgraph/reference/prebuilt/#toolnode)包装这些工具了。这是一个简单的类，在messages列表中包含了带有[tool_calls的AIMessages]((https://api.python.langchain.com/en/latest/messages/langchain_core.messages.ai.AIMessage.html#langchain_core.messages.ai.AIMessage.tool_calls))，运行这个工具，并返回输出作为[ToolMessage](https://api.python.langchain.com/en/latest/messages/langchain_core.messages.tool.ToolMessage.html#langchain_core.messages.tool.ToolMessage)
+我们现在能用简单的[ToolNode](https://langchain-ai.github.io/langgraph/reference/prebuilt/#toolnode)包装这些工具了。这是一个简单的类，在messages列表中包含了带有[tool_calls的AIMessages]((https://api.python.langchain.com/en/latest/messages/langchain_core.messages.ai.AIMessage.html#langchain_core.messages.ai.AIMessage.tool_calls))，运行这个工具，并返回输出作为[ToolMessage](https://api.python.langchain.com/en/latest/messages/langchain_core.messages.tool.ToolMessage.html#langchain_core.messages.tool.ToolMessage)
 
 ```python
 from langgraph.prebuilt import ToolNode
@@ -400,7 +400,7 @@ tool_node = ToolNode(tools)
  1. 它应该能处理消息messages，因为我们的状态state主要由消息列表messages构成（聊天历史）
  2. 它应能处理工具调用，因为我们使用了预构建的[ToolNode](https://langchain-ai.github.io/langgraph/reference/prebuilt/#toolnode)
 
-**注意:** 模型依赖不是使用LangGraph必须的。 —— 它们只是这个特殊例子的要求。
+**注意:** 模型依赖不是必须使用LangGraph的。 —— 只是这个特殊例子的要求。
 
 ```python
 from langchain_openai import ChatOpenAI
@@ -411,7 +411,7 @@ model = ChatOpenAI(model="gpt-3.5-turbo")
 **API 参考:** [ChatOpenAI](https://python.langchain.com/api_reference/openai/chat_models/langchain_openai.chat_models.base.ChatOpenAI.html)
 
 
-我们做完这步后，我们应该确保大模型知道它由这些工具可以调用。我们可以用覆盖langchian工具转换成函数调用的格式实现这一点，然后将他们绑定到mode的类上，如下代码：
+我们做完这步后，应该确保大模型知道它有这些工具可以调用。我们可以用覆盖langchian工具转换成函数调用的格式实现这一点，然后将他们绑定到mode的类上，如下代码：
 
 ```python
 model = model.bind_tools(tools)
@@ -422,7 +422,7 @@ model = model.bind_tools(tools)
 
 
 
-现在我们需要在我们的graph中定义几个不同的节点，在`langgraph`中，一个节点可以是一个函数，也可以是一个[runnable](https://python.langchain.com/docs/concepts/#langchain-expression-language-lcel). 这里我们需要两个主要的节点：
+现在我们需要在graph中定义几个不同的节点，在`langgraph`中，一个节点可以是一个函数，也可以是一个[runnable](https://python.langchain.com/docs/concepts/#langchain-expression-language-lcel). 这里我们需要两个主要的节点：
 
 1. agent 节点：返回决定需要采取的行动（如果有）。
 2. 一个调用工具的函数：如果agent需要采取行动，这个节点将执行这个行动。
@@ -443,6 +443,8 @@ model = model.bind_tools(tools)
 小注释：手工回调传输 Manual Callback Propagation
 
 > Note that in `call_model(state: State, config: RunnableConfig):` below, we a) accept the [RunnableConfig](https://api.python.langchain.com/en/latest/runnables/langchain_core.runnables.config.RunnableConfig.html#langchain_core.runnables.config.RunnableConfig) in the node and b) pass this in as the second arg for `llm.ainvoke(..., config)`. This is optional for python 3.11 and later.
+>
+> 注意下面的`call_model(state: State, config: RunnableConfig):` 我们 a）在节点中接收一个[RunnableConfig](https://api.python.langchain.com/en/latest/runnables/langchain_core.runnables.config.RunnableConfig.html#langchain_core.runnables.config.RunnableConfig)，b）将其作为` llm.ainvoke的第二个参数传入(...，配置)`。对于python 3.11和更高版本，这是可选的。
 
 ```python
 from typing import Literal
@@ -526,7 +528,7 @@ display(Image(app.get_graph().draw_mermaid_png()))
 
 
 
-你可以访问大模型的输出tokens，因为他们是由每一个节点输出的。在这个例子中仅仅只有"agent"节点生产出大模型的tokens。为了能正常工作，你必须使用支持流式输出的大模型，并且在构造LLM的时候就设置这种模式（例如：ChatOpenAI(model="gpt-3.5-turbo-1106", streaming=True)）。
+你可以访问大模型的输出tokens，因为他们是由每一个节点输出的。在这个例子中仅仅只有"agent"节点生产出大模型的tokens。为了能正常运行，你必须使用支持流式输出的大模型，并且在构造LLM的时候就设置这种模式（例如：ChatOpenAI(model="gpt-3.5-turbo-1106", streaming=True)）。
 
 ```python
 from langchain_core.messages import AIMessageChunk, HumanMessage
