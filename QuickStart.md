@@ -1375,7 +1375,7 @@ Are there any particular areas of LangGraph you'd like to explore further? For e
 Or if you have any specific questions about what you've learned so far, I'd be happy to help clarify or expand on those topics. Please let me know what would be most useful for your learning process.
 ```
 
-**Congratulations!** You've used `interrupt_before` and `update_state` to manually modify the state as a part of a human-in-the-loop workflow. Interruptions and state modifications let you control how the agent behaves. Combined with persistent checkpointing, it means you can `pause` an action and `resume` at any point. Your user doesn't have to be available when the graph interrupts!
+
 
 **恭喜！**，你已经用`interrupt_before` 和`update_state` 手工修改状态，作为人工参与（human-in-the-loop)工作流程的一部分。中断和状态修改让你如何控制agent的行为。结合持久化、切入点、意味着你能在任何时候`pause `和`resume`(暂停和恢复)。当graph中断的时候你的用户不比可用。 
 
