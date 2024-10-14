@@ -999,3 +999,389 @@ graph = graph_builder.compile(
     # interrupt_after=["tools"]
 )
 ```
+
+## Part 5: 手动更新状态state
+[参考文档：Manually Updating the State](https://langchain-ai.github.io/langgraph/tutorials/introduction/#part-5-manually-updating-the-state)
+
+在上一章节中，我们展示了如何中断graph来实现人工审查执行动作。这一章节让我们人工读取状态，但是你还想改变agent的处理方式，那他们将需要写入权限。
+
+谢天谢地，LangGraph能让你手动修改状态！更新状态能使你通过修改agent的动作(甚至修改过去的)来控制agent的轨迹。当你想修正agent的错误，探索其他路径或引导agent走向特定的目标时，这项能力是非常有用的。
+
+下面我们将展示更新切入点`checkpoint`的状态，在此之前，我们首先定义graph。我们将完全复用之前相同的graph。
+
+```python
+from typing import Annotated
+
+from langchain_anthropic import ChatAnthropic
+from langchain_community.tools.tavily_search import TavilySearchResults
+from typing_extensions import TypedDict
+
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import StateGraph, START
+from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode, tools_condition
+
+
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+
+
+graph_builder = StateGraph(State)
+
+
+tool = TavilySearchResults(max_results=2)
+tools = [tool]
+llm = ChatAnthropic(model="claude-3-5-sonnet-20240620")
+llm_with_tools = llm.bind_tools(tools)
+
+
+def chatbot(state: State):
+    return {"messages": [llm_with_tools.invoke(state["messages"])]}
+
+
+graph_builder.add_node("chatbot", chatbot)
+
+tool_node = ToolNode(tools=[tool])
+graph_builder.add_node("tools", tool_node)
+
+graph_builder.add_conditional_edges(
+    "chatbot",
+    tools_condition,
+)
+graph_builder.add_edge("tools", "chatbot")
+graph_builder.add_edge(START, "chatbot")
+memory = MemorySaver()
+graph = graph_builder.compile(
+    checkpointer=memory,
+    # This is new!
+    interrupt_before=["tools"],
+    # Note: can also interrupt **after** actions, if desired.
+    # interrupt_after=["tools"]
+)
+
+user_input = "I'm learning LangGraph. Could you do some research on it for me?"
+config = {"configurable": {"thread_id": "1"}}
+# The config is the **second positional argument** to stream() or invoke()!
+events = graph.stream({"messages": [("user", user_input)]}, config)
+for event in events:
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
+```
+
+**API 参考:** [ChatAnthropic](https://python.langchain.com/api_reference/anthropic/chat_models/langchain_anthropic.chat_models.ChatAnthropic.html) | [TavilySearchResults](https://python.langchain.com/api_reference/community/tools/langchain_community.tools.tavily_search.tool.TavilySearchResults.html) | [MemorySaver](https://langchain-ai.github.io/langgraph/reference/checkpoints/#langgraph.checkpoint.memory.MemorySaver) | [StateGraph](https://langchain-ai.github.io/langgraph/reference/graphs/#langgraph.graph.state.StateGraph) | [START](https://langchain-ai.github.io/langgraph/reference/constants/#langgraph.constants.START) | [add_messages](https://langchain-ai.github.io/langgraph/reference/graphs/#langgraph.graph.message.add_messages) | [ToolNode](https://langchain-ai.github.io/langgraph/reference/prebuilt/#langgraph.prebuilt.tool_node.ToolNode) | [tools_condition](https://langchain-ai.github.io/langgraph/reference/prebuilt/#langgraph.prebuilt.tool_node.tools_condition)
+
+```python
+snapshot = graph.get_state(config)
+existing_message = snapshot.values["messages"][-1]
+existing_message.pretty_print()
+```
+
+```tex
+================================== [1m Ai Message [0m==================================
+
+[{'text': "Certainly! I'd be happy to research LangGraph for you. To get the most up-to-date and comprehensive information, I'll use the Tavily search engine to look this up. Let me do that for you now.", 'type': 'text'}, {'id': 'toolu_018YcbFR37CG8RRXnavH5fxZ', 'input': {'query': 'LangGraph: what is it, how is it used in AI development'}, 'name': 'tavily_search_results_json', 'type': 'tool_use'}]
+Tool Calls:
+  tavily_search_results_json (toolu_018YcbFR37CG8RRXnavH5fxZ)
+ Call ID: toolu_018YcbFR37CG8RRXnavH5fxZ
+  Args:
+    query: LangGraph: what is it, how is it used in AI development
+```
+
+
+
+到目前位置，所有的代码都是完全复制上一章节。LLM仅被请求使用搜索引擎工具，和我们的graph被中断了。如果我们和之前一样处理，工具将会被调用去搜索互联网。
+
+
+
+但是如果用户想要调整了？如果我们认为聊天机器人不需要使用工具呢？让我们直接提供正确的答案吧！
+
+```python
+from langchain_core.messages import AIMessage, ToolMessage
+
+answer = (
+    "LangGraph is a library for building stateful, multi-actor applications with LLMs."
+)
+new_messages = [
+    # The LLM API expects some ToolMessage to match its tool call. We'll satisfy that here.
+    ToolMessage(content=answer, tool_call_id=existing_message.tool_calls[0]["id"]),
+    # And then directly "put words in the LLM's mouth" by populating its response.
+    AIMessage(content=answer),
+]
+
+new_messages[-1].pretty_print()
+graph.update_state(
+    # Which state to update
+    config,
+    # The updated values to provide. The messages in our `State` are "append-only", meaning this will be appended
+    # to the existing state. We will review how to update existing messages in the next section!
+    {"messages": new_messages},
+)
+
+print("\n\nLast 2 messages;")
+print(graph.get_state(config).values["messages"][-2:])
+```
+
+```
+==================================[1m Ai Message [0m==================================
+
+LangGraph is a library for building stateful, multi-actor applications with LLMs.
+
+
+Last 2 messages;
+[ToolMessage(content='LangGraph is a library for building stateful, multi-actor applications with LLMs.', id='675f7618-367f-44b7-b80e-2834afb02ac5', tool_call_id='toolu_018YcbFR37CG8RRXnavH5fxZ'), AIMessage(content='LangGraph is a library for building stateful, multi-actor applications with LLMs.', additional_kwargs={}, response_metadata={}, id='35fd5682-0c2a-4200-b192-71c59ac6d412')]
+```
+
+**API 参考:** [AIMessage](https://python.langchain.com/api_reference/core/messages/langchain_core.messages.ai.AIMessage.html) | [ToolMessage](https://python.langchain.com/api_reference/core/messages/langchain_core.messages.tool.ToolMessage.html)
+
+自从我们提供了最的终响应message，现在我们的graph是完整的了！因为状态更新模拟了graph的步骤，所以它们甚至生成了相应的轨迹。查看`update_state`调用 [LangSmith 轨迹](https://smith.langchain.com/public/6d72aeb5-3bca-4090-8684-a11d5a36b10c/r) 来看看发生了什么。
+
+**注意**  我们的新message是追加到状态已存在的message中的。还记得我们是如何定义`State` 类型的吗?
+
+```python
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+```
+
+我们用预构建的`add_messages`函数标注了`messages`。这标识graph总是追加值到已存在的（消息）列表中，而不是直接覆盖它。相同的逻辑在这里也被应用了，所以我们传递给`update_state` 的message是用同样的方式在追加。
+
+`update_state` 函数的作用就像是你的graph中的一个节点（node）。通过默认的，更新操作是用节点作为最后的执行，但是下面你可以手动指定。让我们添加一个更新操作，并告诉graph让其视为来自"chatbot(聊天机器人)"。
+
+```python
+graph.update_state(
+    config,
+    {"messages": [AIMessage(content="I'm an AI expert!")]},
+    # Which node for this function to act as. It will automatically continue
+    # processing as if this node just ran.
+    as_node="chatbot",
+)
+```
+
+```
+{'configurable': {'thread_id': '1',
+  'checkpoint_ns': '',
+  'checkpoint_id': '1ef7d134-3958-6412-8002-3f4b4112062f'}}
+```
+
+Check out the [LangSmith trace](https://smith.langchain.com/public/2e4d92ca-c17c-49e0-92e5-3962390ded30/r) for this update call at the provided link. **Notice** from the trace that the graph continues into the `tools_condition` edge. We just told the graph to treat the update `as_node="chatbot"`. If we follow the diagram below and start from the `chatbot` node, we naturally end up in the `tools_condition` edge and then `__end__` since our updated message lacks tool calls.
+
+```python
+from IPython.display import Image, display
+
+try:
+    display(Image(graph.get_graph().draw_mermaid_png()))
+except Exception:
+    # This requires some extra dependencies and is optional
+    pass
+```
+
+![mannuall-updating-state](./images/mannuall-updating-state.png)
+
+像以前一样检查当前状态，以确认checkpoint反映了我们的手动更新。
+
+```python
+snapshot = graph.get_state(config)
+print(snapshot.values["messages"][-3:])
+print(snapshot.next)
+```
+
+```
+[ToolMessage(content='LangGraph is a library for building stateful, multi-actor applications with LLMs.', id='675f7618-367f-44b7-b80e-2834afb02ac5', tool_call_id='toolu_018YcbFR37CG8RRXnavH5fxZ'), AIMessage(content='LangGraph is a library for building stateful, multi-actor applications with LLMs.', additional_kwargs={}, response_metadata={}, id='35fd5682-0c2a-4200-b192-71c59ac6d412'), AIMessage(content="I'm an AI expert!", additional_kwargs={}, response_metadata={}, id='288e2f74-f1cb-4082-8c3c-af4695c83117')]
+()
+```
+
+**注意**: 我们已经继续添加AI message 到状态里面了。当我们模拟`chatbot`和用不包含`too_calls`的AIMessage响应的时候，graph就知道已经进入结束状态了（`next`节点是空的）。
+
+### 什么是你想覆盖已经存在的message?
+[参考文档：if you want to **overwrite** existing messages?](https://langchain-ai.github.io/langgraph/tutorials/introduction/#what-if-you-want-to-overwrite-existing-messages)
+
+在上面用[`add_messages`](https://langchain-ai.github.io/langgraph/reference/graphs/?h=add+messages#add_messages) 函数标注我们graph的状态，就是控制如何更新到`message`的关键。这个函数观察在新`messages`列表内的任何message ID。如何ID匹配到一个在state中已经存在的message时，[`add_messages`](https://langchain-ai.github.io/langgraph/reference/graphs/?h=add+messages#add_messages) 就用新的内容覆盖已经存在的消息。
+
+As an example, let's update the tool invocation to make sure we get good results from our search engine! First, start a new thread:z
+
+例如，让我们更新工具的调用，来确保我们从搜索引擎中获得良好的结果！首先，开启一个新的线程：
+
+```python
+user_input = "I'm learning LangGraph. Could you do some research on it for me?"
+config = {"configurable": {"thread_id": "2"}}  # we'll use thread_id = 2 here
+events = graph.stream(
+    {"messages": [("user", user_input)]}, config, stream_mode="values"
+)
+for event in events:
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
+```
+
+```
+================================[1m Human Message [0m=================================
+
+I'm learning LangGraph. Could you do some research on it for me?
+==================================[1m Ai Message [0m==================================
+
+[{'text': "Certainly! I'd be happy to research LangGraph for you. To get the most up-to-date and accurate information, I'll use the Tavily search engine to look this up. Let me do that for you now.", 'type': 'text'}, {'id': 'toolu_01TfAeisrpx4ddgJpoAxqrVh', 'input': {'query': 'LangGraph framework for language models'}, 'name': 'tavily_search_results_json', 'type': 'tool_use'}]
+Tool Calls:
+  tavily_search_results_json (toolu_01TfAeisrpx4ddgJpoAxqrVh)
+ Call ID: toolu_01TfAeisrpx4ddgJpoAxqrVh
+  Args:
+    query: LangGraph framework for language models
+```
+
+
+
+**接着,** 为我们的agent更新工具调用，也许我们想专门搜索“人工参与（human-in-the-loop）”流程。
+
+```python
+from langchain_core.messages import AIMessage
+
+snapshot = graph.get_state(config)
+existing_message = snapshot.values["messages"][-1]
+print("Original")
+print("Message ID", existing_message.id)
+print(existing_message.tool_calls[0])
+new_tool_call = existing_message.tool_calls[0].copy()
+new_tool_call["args"]["query"] = "LangGraph human-in-the-loop workflow"
+new_message = AIMessage(
+    content=existing_message.content,
+    tool_calls=[new_tool_call],
+    # Important! The ID is how LangGraph knows to REPLACE the message in the state rather than APPEND this messages
+    id=existing_message.id,
+)
+
+print("Updated")
+print(new_message.tool_calls[0])
+print("Message ID", new_message.id)
+graph.update_state(config, {"messages": [new_message]})
+
+print("\n\nTool calls")
+graph.get_state(config).values["messages"][-1].tool_calls
+```
+
+```
+Original
+Message ID run-342f3f54-356b-4cc1-b747-573f6aa31054-0
+{'name': 'tavily_search_results_json', 'args': {'query': 'LangGraph framework for language models'}, 'id': 'toolu_01TfAeisrpx4ddgJpoAxqrVh', 'type': 'tool_call'}
+Updated
+{'name': 'tavily_search_results_json', 'args': {'query': 'LangGraph human-in-the-loop workflow'}, 'id': 'toolu_01TfAeisrpx4ddgJpoAxqrVh', 'type': 'tool_call'}
+Message ID run-342f3f54-356b-4cc1-b747-573f6aa31054-0
+
+
+Tool calls
+```
+
+```
+[{'name': 'tavily_search_results_json',
+  'args': {'query': 'LangGraph human-in-the-loop workflow'},
+  'id': 'toolu_01TfAeisrpx4ddgJpoAxqrVh',
+  'type': 'tool_call'}]
+```
+
+**API 参考:** [AIMessage](https://python.langchain.com/api_reference/core/messages/langchain_core.messages.ai.AIMessage.html)
+
+**注意** 我们已经修改了AI工具的调用，来搜索"LangGraph human-in-the-loop workflow" 替简单的了 "LangGraph".
+
+Check out the [LangSmith trace](https://smith.langchain.com/public/cd7c09a6-758d-41d4-8de1-64ab838b2338/r) to see the state update call - you can see our new message has successfully updated the previous AI message.
+
+继续用带有`None`的输入和已经存在的配置config参数，流式输出graph。
+
+```python
+events = graph.stream(None, config, stream_mode="values")
+for event in events:
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
+```
+
+```tex
+==================================[1m Ai Message [0m==================================
+
+[{'text': "Certainly! I'd be happy to research LangGraph for you. To get the most up-to-date and accurate information, I'll use the Tavily search engine to look this up. Let me do that for you now.", 'type': 'text'}, {'id': 'toolu_01TfAeisrpx4ddgJpoAxqrVh', 'input': {'query': 'LangGraph framework for language models'}, 'name': 'tavily_search_results_json', 'type': 'tool_use'}]
+Tool Calls:
+  tavily_search_results_json (toolu_01TfAeisrpx4ddgJpoAxqrVh)
+ Call ID: toolu_01TfAeisrpx4ddgJpoAxqrVh
+  Args:
+    query: LangGraph human-in-the-loop workflow
+=================================[1m Tool Message [0m=================================
+Name: tavily_search_results_json
+
+[{"url": "https://www.youtube.com/watch?v=9BPCV5TYPmg", "content": "In this video, I'll show you how to handle persistence with LangGraph, enabling a unique Human-in-the-Loop workflow. This approach allows a human to grant an..."}, {"url": "https://medium.com/@kbdhunga/implementing-human-in-the-loop-with-langgraph-ccfde023385c", "content": "Implementing a Human-in-the-Loop (HIL) framework in LangGraph with the Streamlit app provides a robust mechanism for user engagement and decision-making. By incorporating breakpoints and ..."}]
+==================================[1m Ai Message [0m==================================
+
+Thank you for your patience. I've found some information about LangGraph, particularly focusing on its human-in-the-loop workflow capabilities. Let me summarize what I've learned for you:
+
+1. LangGraph Overview:
+   LangGraph is a framework for building stateful, multi-actor applications with Large Language Models (LLMs). It's particularly useful for creating complex, interactive AI systems.
+
+2. Human-in-the-Loop (HIL) Workflow:
+   One of the key features of LangGraph is its support for human-in-the-loop workflows. This means that it allows for human intervention and decision-making within AI-driven processes.
+
+3. Persistence Handling:
+   LangGraph offers capabilities for handling persistence, which is crucial for maintaining state across interactions in a workflow.
+
+4. Implementation with Streamlit:
+   There are examples of implementing LangGraph's human-in-the-loop functionality using Streamlit, a popular Python library for creating web apps. This combination allows for the creation of interactive user interfaces for AI applications.
+
+5. Breakpoints and User Engagement:
+   LangGraph allows the incorporation of breakpoints in the workflow. These breakpoints are points where the system can pause and wait for human input or decision-making, enhancing user engagement and control over the AI process.
+
+6. Decision-Making Mechanism:
+   The human-in-the-loop framework in LangGraph provides a robust mechanism for integrating user decision-making into AI workflows. This is particularly useful in scenarios where human judgment or expertise is needed to guide or validate AI actions.
+
+7. Flexibility and Customization:
+   From the information available, it seems that LangGraph offers flexibility in how human-in-the-loop processes are implemented, allowing developers to customize the interaction points and the nature of human involvement based on their specific use case.
+
+LangGraph appears to be a powerful tool for developers looking to create more interactive and controllable AI applications, especially those that benefit from human oversight or input at crucial stages of the process.
+
+Would you like me to research any specific aspect of LangGraph in more detail, or do you have any questions about what I've found so far?
+```
+
+检查我们的 [trace](https://smith.langchain.com/public/2d633326-14ad-4248-a391-2757d01851c4/r/6464f2f2-edb4-4ef3-8f48-ee4e249f2ad0) 来查看工具调用和之后大模型的响应。**注意**现在graph是用我们更新后的查询措辞来查询搜索引擎——这里我们已经能手动覆盖大模型的搜索了。
+
+
+
+这所有的都反映在了graph的记忆切入点（memory checkpoint）中，意味着如果我们继续对话，它将重新调用所有*修改过*的状态.
+
+```python
+events = graph.stream(
+    {
+        "messages": (
+            "user",
+            "Remember what I'm learning about?",
+        )
+    },
+    config,
+    stream_mode="values",
+)
+for event in events:
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
+```
+
+```
+================================[1m Human Message [0m=================================
+
+Remember what I'm learning about?
+==================================[1m Ai Message [0m==================================
+
+I apologize for my oversight. You're absolutely right to remind me. You mentioned that you're learning LangGraph. Thank you for bringing that back into focus. 
+
+Since you're in the process of learning LangGraph, it would be helpful to know more about your current level of understanding and what specific aspects of LangGraph you're most interested in or finding challenging. This way, I can provide more targeted information or explanations that align with your learning journey.
+
+Are there any particular areas of LangGraph you'd like to explore further? For example:
+
+1. Basic concepts and architecture of LangGraph
+2. Setting up and getting started with LangGraph
+3. Implementing specific features like the human-in-the-loop workflow
+4. Best practices for using LangGraph in projects
+5. Comparisons with other similar frameworks
+
+Or if you have any specific questions about what you've learned so far, I'd be happy to help clarify or expand on those topics. Please let me know what would be most useful for your learning process.
+```
+
+**Congratulations!** You've used `interrupt_before` and `update_state` to manually modify the state as a part of a human-in-the-loop workflow. Interruptions and state modifications let you control how the agent behaves. Combined with persistent checkpointing, it means you can `pause` an action and `resume` at any point. Your user doesn't have to be available when the graph interrupts!
+
+**恭喜！**，你已经用`interrupt_before` 和`update_state` 手工修改状态，作为人工参与（human-in-the-loop)工作流程的一部分。中断和状态修改让你如何控制agent的行为。结合持久化、切入点、意味着你能在任何时候`pause `和`resume`(暂停和恢复)。当graph中断的时候你的用户不比可用。 
+
+
+
+这部分graph的代码和前面的完全相同。关键的片段是记得添加`.compile(..., interrupt_before=[...])` (或`interrupt_after`) 
+
+如果您想在graph到达节点时显式暂停graph。之后你可用用`update_state` 更新切入点和控制graph该如何处理。
+

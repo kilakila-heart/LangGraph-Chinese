@@ -61,7 +61,7 @@ LangGraph首先被构建为流式交互。本指南展示怎样使用不同的�
 - [怎样在不用Langchain大模型API下对大模型进行steam输出](https://langchain-ai.github.io/langgraph/how-tos/streaming-tokens-without-langchain/)
 - [怎样steam传输自定义数据](https://langchain-ai.github.io/langgraph/how-tos/streaming-content/)
 - [怎样同时配置多steam式传输](https://langchain-ai.github.io/langgraph/how-tos/stream-multiple/)
-- [How to stream events from within a tool](https://langchain-ai.github.io/langgraph/how-tos/streaming-events-from-within-tools/)
+- [如何在工具中流式输出事件](#steam7)
 - [How to stream events from within a tool without LangChain models](https://langchain-ai.github.io/langgraph/how-tos/streaming-events-from-within-tools-without-langchain/)
 - [How to stream events from the final node 怎样从最终节点传输(stream)事件](https://langchain-ai.github.io/langgraph/how-tos/streaming-from-final-node/)
 - [How to stream from subgraphs](https://langchain-ai.github.io/langgraph/how-tos/streaming-subgraphs/)
@@ -563,3 +563,166 @@ async for msg, metadata in app.astream({"messages": inputs}, stream_mode="messag
 ```
 
 **API 参考:** [AIMessageChunk](https://python.langchain.com/api_reference/core/messages/langchain_core.messages.ai.AIMessageChunk.html) | [HumanMessage](https://python.langchain.com/api_reference/core/messages/langchain_core.messages.human.HumanMessage.html)
+
+
+
+ <a id='steam7'></a>
+
+### 如何在工具内流式输出数据
+[参考文档:How to stream data from within a tool](https://langchain-ai.github.io/langgraph/how-tos/streaming-events-from-within-tools/#how-to-stream-data-from-within-a-tool)
+
+#### 前提
+
+这个教程假设你已经熟悉如下内容：
+
+- [Streaming](https://langchain-ai.github.io/langgraph/concepts/streaming/)
+- [Chat Models](https://python.langchain.com/docs/concepts/#chat-models/)
+- [Tools](https://python.langchain.com/docs/concepts/#tools)
+- [RunnableConfig](https://api.python.langchain.com/en/latest/runnables/langchain_core.runnables.config.RunnableConfig.html#langchain_core.runnables.config.RunnableConfig)
+- [RunnableInterface](https://python.langchain.com/docs/concepts/#runnable-interface)
+
+如何你的graph涉及调用大模型（或者像是其他graph一样的LangChain`Runnable` 对象，`LCEL` 链，或检索器）的工具。你可能想要在工具执行期间先显示出部分结果，尤其是工具运行时间较长的情况下。
+
+一个通用的场景是由工具LLM的工具流式输出大模型的tokens，尽管这适用于任何使用Runnable对象的情况。
+
+这个教程展示了如何在工具内用`astream` API 和`stream_mode="messages"`流式输出数据，并且还有更细颗粒度的`astream_events` API。`astream` API估计能满足大部分应用场景。
+
+####  准备
+
+首先，初始化依赖包和设置API key。
+
+```python
+%%capture --no-stderr
+%pip install -U langgraph langchain-openai
+import getpass
+import os
+
+
+def _set_env(var: str):
+    if not os.environ.get(var):
+        os.environ[var] = getpass.getpass(f"{var}: ")
+
+
+_set_env("OPENAI_API_KEY")
+```
+设置 LangSmith 来进行 LangGraph 开发
+
+> Sign up for LangSmith to quickly spot issues and improve the performance of your LangGraph projects. LangSmith lets you use trace data to debug, test, and monitor your LLM apps built with LangGraph — read more about how to get started here.
+
+
+
+#### 定义graph
+
+在本指南中，我们将使用一个预构建的ReAct Agent。
+
+**在PYTHON<=3.10 中ASYNC** 
+
+>Any Langchain `RunnableLambda`, a `RunnableGenerator`, or `Tool` that invokes other runnables and is running async in python<=3.10, will have to propagate callbacks to child objects **manually**. This is because LangChain cannot automatically propagate callbacks to child objects in this case. This is a common reason why you may fail to see events being emitted from custom runnables or tools.
+
+```python
+from langchain_core.callbacks import Callbacks
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
+
+from langgraph.prebuilt import create_react_agent
+from langchain_openai import ChatOpenAI
+
+
+@tool
+async def get_items(
+    place: str,
+    callbacks: Callbacks,  # <--- Manually accept callbacks (needed for Python <= 3.10)
+) -> str:
+    """Use this tool to look up which items are in the given place."""
+    # Attention when using async, you should be invoking the LLM using ainvoke!
+    # If you fail to do so, streaming will not WORK.
+    return await llm.ainvoke(
+        [
+            {
+                "role": "user",
+                "content": f"Can you tell me what kind of items i might find in the following place: '{place}'. "
+                "List at least 3 such items separating them by a comma. And include a brief description of each item..",
+            }
+        ],
+        {"callbacks": callbacks},
+    )
+
+
+llm = ChatOpenAI(model_name="gpt-4o")
+tools = [get_items]
+agent = create_react_agent(llm, tools=tools)
+```
+
+**API 参考:** [HumanMessage](https://python.langchain.com/api_reference/core/messages/langchain_core.messages.human.HumanMessage.html) | [tool](https://python.langchain.com/api_reference/core/tools/langchain_core.tools.convert.tool.html) | [ChatOpenAI](https://python.langchain.com/api_reference/openai/chat_models/langchain_openai.chat_models.base.ChatOpenAI.html) | [create_react_agent](https://langchain-ai.github.io/langgraph/reference/prebuilt/#langgraph.prebuilt.chat_agent_executor.create_react_agent)
+
+#### 使用 stream_mode="messages"
+[参考文档：Using stream_mode="messages"](https://langchain-ai.github.io/langgraph/how-tos/streaming-events-from-within-tools/#using-stream_modemessages)
+
+
+
+如果在你的节点（node）内部没有复杂的LCEL逻辑（或者在你的LCEL链内不需要非常系颗粒度的步骤） ，那么使用`stream_mode="messages"`将是一个很好的选择。 
+
+```python
+final_message = ""
+async for msg, metadata in agent.astream(
+    {"messages": [("human", "what items are on the shelf?")]}, stream_mode="messages"
+):
+    # Stream all messages from the tool node
+    if (
+        msg.content
+        and not isinstance(msg, HumanMessage)
+        and metadata["langgraph_node"] == "tools"
+        and not msg.name
+    ):
+        print(msg.content, end="|", flush=True)
+    # Final message should come from our agent
+    if msg.content and metadata["langgraph_node"] == "agent":
+        final_message += msg.content
+```
+
+####  使用 stream events API
+
+[参考文档：Using stream events API](https://langchain-ai.github.io/langgraph/how-tos/streaming-events-from-within-tools/#using-stream-events-api)
+
+为了简单，`get_items` 工具内部没有任何复杂的LCEL逻辑——仅调用大模型。
+
+
+
+然而，如果工具太复杂（例如，在工具内使用RAG链），并且你想看清楚链内部更细颗粒度的事件(event)，那你可以使用`astream events` API.
+
+
+
+下面的例子仅仅展示如何调用API。
+
+
+
+**警告：使用异步的`async astream events` API**
+
+> 你通常应该使用`async`代码（例如：使用`ainvoke`来调用大模型）才能充分发挥`astream events` API。
+
+```python
+from langchain_core.messages import HumanMessage
+
+async for event in agent.astream_events(
+    {"messages": [{"role": "user", "content": "what's in the bedroom."}]}, version="v2"
+):
+    if (
+        event["event"] == "on_chat_model_stream"
+        and event["metadata"].get("langgraph_node") == "tools"
+    ):
+        print(event["data"]["chunk"].content, end="|", flush=True)
+```
+
+
+
+```tex
+|In| a| bedroom|,| you| might| find| the| following| items|:
+
+|1|.| **|Bed|**|:| The| central| piece| of| furniture| in| a| bedroom|,| typically| consisting| of| a| mattress| on| a| frame|,| where| people| sleep|.| It| often| includes| bedding| such| as| sheets|,| blankets|,| and| pillows| for| comfort|.
+
+|2|.| **|Ward|robe|**|:| A| large|,| tall| cupboard| or| fre|estanding| piece| of| furniture| used| for| storing| clothes|.| It| may| have| hanging| space|,| shelves|,| and| sometimes| drawers| for| organizing| garments| and| accessories|.
+
+|3|.| **|Night|stand|**|:| A| small| table| or| cabinet| placed| beside| the| bed|,| used| for| holding| items| like| a| lamp|,| alarm| clock|,| books|,| or| personal| belongings| that| might| be| needed| during| the| night| or| early| morning|.||
+```
+
+**API 参考:** [HumanMessage](https://python.langchain.com/api_reference/core/messages/langchain_core.messages.human.HumanMessage.html)
