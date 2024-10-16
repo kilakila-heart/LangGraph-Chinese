@@ -1385,3 +1385,457 @@ Or if you have any specific questions about what you've learned so far, I'd be h
 
 如果您想在graph到达节点时显式暂停graph。之后你可用用`update_state` 更新切入点和控制graph该如何处理。
 
+
+
+## Part 6: 自定义状态
+
+[参考文档：Customizing State](https://langchain-ai.github.io/langgraph/tutorials/introduction/#part-6-customizing-state)
+
+### 本章总结：(译者注，非源文档)：
+
+> 本章节讲述的内容是：通过自定义一个“人工”节点和 “一个可转发请求”的工具，让LLM自己决定是否需要调用此工具，如果调用了，就然后通过自定state中的标记引导到“人工”节点，这样实现“人工”介入回答，而不完全是由大模型自己回答。
+
+
+
+到目前为止，我们已经依赖于简单的state（它仅仅只有一个message列表!）。你用这个简单的state基本够用了，但是如果你想在不依赖message列表情况下定义更加复杂的行为，你可用在state上增加额外的字段。在本节，我们将用添加新节点扩展我们的机器人来说明这一点。
+
+在下面的例子中，我们包含了一个认为决定：当tool被调用的时候，graph将一直被中断。假设我们希望我们的聊天机器人能选择依赖人工。
+
+有一种实现方式是创建一个通过“人工”节点，在此之前graph将总是停止。如果LLM在调用“人”工具的时候我们仅需要执行这个节点。对我们的对话来说，我们将在graph的state中包含一个“ask_human”的标记，如果LLM调用这个工具时我们将切换这个标记。
+
+下面，我们将定义一个新的graph，和一个可修改的state
+```python
+from typing import Annotated
+
+from langchain_anthropic import ChatAnthropic
+from langchain_community.tools.tavily_search import TavilySearchResults
+from typing_extensions import TypedDict
+
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import StateGraph, START
+from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode, tools_condition
+
+
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+    # This flag is new
+    ask_human: bool
+```
+
+**API 参考:** [ChatAnthropic](https://python.langchain.com/api_reference/anthropic/chat_models/langchain_anthropic.chat_models.ChatAnthropic.html) | [TavilySearchResults](https://python.langchain.com/api_reference/community/tools/langchain_community.tools.tavily_search.tool.TavilySearchResults.html) | [MemorySaver](https://langchain-ai.github.io/langgraph/reference/checkpoints/#langgraph.checkpoint.memory.MemorySaver) | [StateGraph](https://langchain-ai.github.io/langgraph/reference/graphs/#langgraph.graph.state.StateGraph) | [START](https://langchain-ai.github.io/langgraph/reference/constants/#langgraph.constants.START) | [add_messages](https://langchain-ai.github.io/langgraph/reference/graphs/#langgraph.graph.message.add_messages) | [ToolNode](https://langchain-ai.github.io/langgraph/reference/prebuilt/#langgraph.prebuilt.tool_node.ToolNode) | [tools_condition](https://langchain-ai.github.io/langgraph/reference/prebuilt/#langgraph.prebuilt.tool_node.tools_condition)
+
+
+
+下面，我们定义了一个约束类（Pydantic定义的class）来展示模型，让它来决定请求协助。
+
+
+
+**在langchian中使用Pydantic**
+
+> This notebook uses Pydantic v2 `BaseModel`, which requires `langchain-core >= 0.3`. Using `langchain-core < 0.3` will result in errors due to mixing of Pydantic v1 and v2 `BaseModels`.
+
+
+
+```python
+from pydantic import BaseModel
+
+
+class RequestAssistance(BaseModel):
+    """Escalate the conversation to an expert. Use this if you are unable to assist directly or if the user requires support beyond your permissions.
+
+    To use this function, relay the user's 'request' so the expert can provide the right guidance.
+    """
+
+    request: str
+```
+
+
+
+下一步，定义chatbot节点。如果我们想看聊天机器人调用`RequestAssistance` 标记，那主要的修改就是切换`ask_human` 标记。
+
+```python
+tool = TavilySearchResults(max_results=2)
+tools = [tool]
+llm = ChatAnthropic(model="claude-3-5-sonnet-20240620")
+# We can bind the llm to a tool definition, a pydantic model, or a json schema
+llm_with_tools = llm.bind_tools(tools + [RequestAssistance])
+
+
+def chatbot(state: State):
+    response = llm_with_tools.invoke(state["messages"])
+    ask_human = False
+    if (
+        response.tool_calls
+        and response.tool_calls[0]["name"] == RequestAssistance.__name__
+    ):
+        ask_human = True
+    return {"messages": [response], "ask_human": ask_human}
+```
+
+下面，为graph创建graph builder 和添加聊天机器人的工具节点，这跟之前一样。
+
+```python
+graph_builder = StateGraph(State)
+
+graph_builder.add_node("chatbot", chatbot)
+graph_builder.add_node("tools", ToolNode(tools=[tool]))
+```
+
+
+
+下一步，创建一个“human”节点。这个节点函数在我们的graph中主要是占位符的作用，用来触发一个中断。如果在中断（`interrupt`）期间**不**手动修改state，它将插入一个工具message(ToolMessage)，这样LLM才知道用户请求了但是没有响应。这个节点也没有重置`ask_human`标记，所以graph知道不重新访问该节点，除非有更进一步的请求被创建。
+
+```python
+from langchain_core.messages import AIMessage, ToolMessage
+
+
+def create_response(response: str, ai_message: AIMessage):
+    return ToolMessage(
+        content=response,
+        tool_call_id=ai_message.tool_calls[0]["id"],
+    )
+
+
+def human_node(state: State):
+    new_messages = []
+    if not isinstance(state["messages"][-1], ToolMessage):
+        # Typically, the user will have updated the state during the interrupt.
+        # If they choose not to, we will include a placeholder ToolMessage to
+        # let the LLM continue.
+        new_messages.append(
+            create_response("No response from human.", state["messages"][-1])
+        )
+    return {
+        # Append the new messages
+        "messages": new_messages,
+        # Unset the flag
+        "ask_human": False,
+    }
+
+
+graph_builder.add_node("human", human_node)
+```
+
+**API 参考:** [AIMessage](https://python.langchain.com/api_reference/core/messages/langchain_core.messages.ai.AIMessage.html) | [ToolMessage](https://python.langchain.com/api_reference/core/messages/langchain_core.messages.tool.ToolMessage.html)
+
+
+
+下面，定义一个条件逻辑。如何设置了标记，`select_next_node` 将转发到`human` 节点。否则，它将让预发布的`tools_condition` 函数选择下一节点。
+
+
+
+回想一下，`tools_condition` 函数仅仅检查`chatbot`，看它是否已经在自己的响应message中调用任意`tool_calls` 响应了。
+
+如果这样，它将转发到`action`节点。否则直到graph结束。
+
+
+
+```python
+def select_next_node(state: State):
+    if state["ask_human"]:
+        return "human"
+    # Otherwise, we can route as before
+    return tools_condition(state)
+
+
+graph_builder.add_conditional_edges(
+    "chatbot",
+    select_next_node,
+    {"human": "human", "tools": "tools", END: END},
+)
+```
+
+
+
+最后，添加一个简单直接的边（edge）和编译graph。每当节点`a`完成执行的时候，这些边总是控制graph遵循：节点`a` -> `b`流转。
+
+```python
+# The rest is the same
+graph_builder.add_edge("tools", "chatbot")
+graph_builder.add_edge("human", "chatbot")
+graph_builder.add_edge(START, "chatbot")
+memory = MemorySaver()
+graph = graph_builder.compile(
+    checkpointer=memory,
+    # We interrupt before 'human' here instead.
+    interrupt_before=["human"],
+)
+```
+
+
+
+如果你已经安装了可视化依赖，你能看到下面graph的结构：
+
+```python
+from IPython.display import Image, display
+
+try:
+    display(Image(graph.get_graph().draw_mermaid_png()))
+except Exception:
+    # This requires some extra dependencies and is optional
+    pass
+```
+
+
+
+<img src=".\images\custmizing_state.png" style="zoom:80%;" />
+
+
+
+这个聊天机器人既能从人工那里请求帮助（聊天机器人>选择>人），调用搜索引擎工具（聊天机器人>选择>执行），也能直接响应（聊天机器人>选择>结束）。一旦作出一个动作或请求，graph将转换回聊天机器人节点来继续执行。
+
+
+
+让我们看看graph的运行情况（action），我们将请求专业的助手来说明我们的graph。
+
+```python
+# 我需要一些专业创建AI agent的指南。你能为我请求助手吗？
+user_input = "I need some expert guidance for building this AI agent. Could you request assistance for me?"
+config = {"configurable": {"thread_id": "1"}}
+# The config is the **second positional argument** to stream() or invoke()!
+events = graph.stream(
+    {"messages": [("user", user_input)]}, config, stream_mode="values"
+)
+for event in events:
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
+```
+
+```
+================================[1m Human Message [0m=================================
+
+I need some expert guidance for building this AI agent. Could you request assistance for me?
+==================================[1m Ai Message [0m==================================
+
+[{'text': "Certainly! I understand that you need expert guidance for building an AI agent. I'll use the RequestAssistance function to escalate your request to an expert who can provide you with the specialized knowledge and support you need. Let me do that for you right away.", 'type': 'text'}, {'id': 'toolu_01Mo3N2c1byuSZwT1vyJWRia', 'input': {'request': 'The user needs expert guidance for building an AI agent. They require specialized knowledge and support in AI development and implementation.'}, 'name': 'RequestAssistance', 'type': 'tool_use'}]
+Tool Calls:
+  RequestAssistance (toolu_01Mo3N2c1byuSZwT1vyJWRia)
+ Call ID: toolu_01Mo3N2c1byuSZwT1vyJWRia
+  Args:
+    request: The user needs expert guidance for building an AI agent. They require specialized knowledge and support in AI development and implementation.
+```
+
+**注意:** LLM调用我们提供的 "`RequestAssistance`" 工具，并且中断标识已经被设置，让我们检查graph
+
+的状态来确认。
+
+```python
+snapshot = graph.get_state(config)
+snapshot.next
+```
+
+```tex
+('human',)
+```
+
+
+
+graph的状态在 `'human'`之前确实被中断了（**interrupted** ）。在这个场景里面我们可用扮作”专家“，并且通过添加新的ToolMessage 作为我们的输入，用于手动更新状态。
+
+
+
+下一步，响应聊天机器人的请求，通过：
+
+1. 创建一个`ToolMessage` 作为我们的响应。这将返回给我们的聊天机器人。
+2. 调用`update_state` 手动更新graph的状态。
+
+```python
+ai_message = snapshot.values["messages"][-1]
+human_response = (
+    "We, the experts are here to help! We'd recommend you check out LangGraph to build your agent."
+    " It's much more reliable and extensible than simple autonomous agents."
+)
+tool_message = create_response(human_response, ai_message)
+graph.update_state(config, {"messages": [tool_message]})
+```
+
+```
+{'configurable': {'thread_id': '1',
+  'checkpoint_ns': '',
+  'checkpoint_id': '1ef7d092-bb30-6bee-8002-015e7e1c56c0'}}
+```
+
+你可以检查state来确认我们的响应是否被添加成功。
+
+```python
+graph.get_state(config).values["messages"]
+```
+
+
+
+```tex
+[HumanMessage(content='I need some expert guidance for building this AI agent. Could you request assistance for me?', additional_kwargs={}, response_metadata={}, id='3f28f959-9ab7-489a-9c58-7ed1b49cedf3'),
+ AIMessage(content=[{'text': "Certainly! I understand that you need expert guidance for building an AI agent. I'll use the RequestAssistance function to escalate your request to an expert who can provide you with the specialized knowledge and support you need. Let me do that for you right away.", 'type': 'text'}, {'id': 'toolu_01Mo3N2c1byuSZwT1vyJWRia', 'input': {'request': 'The user needs expert guidance for building an AI agent. They require specialized knowledge and support in AI development and implementation.'}, 'name': 'RequestAssistance', 'type': 'tool_use'}], additional_kwargs={}, response_metadata={'id': 'msg_01VRnZvVbgsVRbQaQuvsziDx', 'model': 'claude-3-5-sonnet-20240620', 'stop_reason': 'tool_use', 'stop_sequence': None, 'usage': {'input_tokens': 516, 'output_tokens': 130}}, id='run-4e3f7906-5887-40d9-9267-5beefe7b3b76-0', tool_calls=[{'name': 'RequestAssistance', 'args': {'request': 'The user needs expert guidance for building an AI agent. They require specialized knowledge and support in AI development and implementation.'}, 'id': 'toolu_01Mo3N2c1byuSZwT1vyJWRia', 'type': 'tool_call'}], usage_metadata={'input_tokens': 516, 'output_tokens': 130, 'total_tokens': 646}),
+ ToolMessage(content="We, the experts are here to help! We'd recommend you check out LangGraph to build your agent. It's much more reliable and extensible than simple autonomous agents.", id='8583b899-d898-4051-9f36-f5e5d11e9a37', tool_call_id='toolu_01Mo3N2c1byuSZwT1vyJWRia')]
+```
+
+
+
+下面，通过调用`None`作为输入参数来**恢复**graph运行。
+
+```python
+events = graph.stream(None, config, stream_mode="values")
+for event in events:
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
+```
+
+```tex
+=================================[1m Tool Message [0m=================================
+
+We, the experts are here to help! We'd recommend you check out LangGraph to build your agent. It's much more reliable and extensible than simple autonomous agents.
+=================================[1m Tool Message [0m=================================
+
+We, the experts are here to help! We'd recommend you check out LangGraph to build your agent. It's much more reliable and extensible than simple autonomous agents.
+==================================[1m Ai Message [0m==================================
+
+Thank you for your patience. I've escalated your request to our expert team, and they have provided some initial guidance. Here's what they suggest:
+
+The experts recommend that you check out LangGraph for building your AI agent. They mention that LangGraph is a more reliable and extensible option compared to simple autonomous agents.
+
+LangGraph is likely a framework or tool designed specifically for creating complex AI agents. It seems to offer advantages in terms of reliability and extensibility, which are crucial factors when developing sophisticated AI systems.
+
+To further assist you, I can provide some additional context and next steps:
+
+1. Research LangGraph: Look up documentation, tutorials, and examples of LangGraph to understand its features and how it can help you build your AI agent.
+
+2. Compare with other options: While the experts recommend LangGraph, it might be useful to understand how it compares to other AI agent development frameworks or tools you might have been considering.
+
+3. Assess your requirements: Consider your specific needs for the AI agent you want to build. Think about the tasks it needs to perform, the level of complexity required, and how LangGraph's features align with these requirements.
+
+4. Start with a small project: If you decide to use LangGraph, consider beginning with a small, manageable project to familiarize yourself with the framework.
+
+5. Seek community support: Look for LangGraph user communities, forums, or discussion groups where you can ask questions and get additional support as you build your agent.
+
+6. Consider additional training: Depending on your current skill level, you might want to look into courses or workshops that focus on AI agent development, particularly those that cover LangGraph.
+
+Do you have any specific questions about LangGraph or AI agent development that you'd like me to try to answer? Or would you like me to search for more detailed information about LangGraph and its features?
+```
+
+**注意** 聊天机器人在最终的响应中已经合并了修改过的状态state。自从**万物**都是切入点(`checkpointed`)，这个”专家“（expert human）在循环中能在任何时候够扮作更新的内容，而不会影响graph的执行。
+
+
+
+**恭喜!** 你现在为助手graph添加了一个额外的节点，让聊天机器人决定他自己是否需要中断执行。你做了这些：在编译graph的时候，更新带有`ask_human` 字段的grap状态和修改中断逻辑。这让你在循环中动态嵌入一个“人”，同时在你每次执行graph时保持**记忆（memory）**的完整。
+
+
+
+我们几乎完成了这个教程，但我们还想回顾另外一个概念，它连接了`checkpointing` （记忆切入点）和`state updates`（状态更新）。
+
+
+
+本节代码复制如下,供您参考。
+
+### 完整代码
+
+```python
+from typing import Annotated
+
+from langchain_anthropic import ChatAnthropic
+from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_core.messages import BaseMessage
+# NOTE: you must use langchain-core >= 0.3 with Pydantic v2
+from pydantic import BaseModel
+from typing_extensions import TypedDict
+
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import StateGraph
+from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode, tools_condition
+
+
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+    # This flag is new
+    ask_human: bool
+
+
+class RequestAssistance(BaseModel):
+    """Escalate the conversation to an expert. Use this if you are unable to assist directly or if the user requires support beyond your permissions.
+
+    To use this function, relay the user's 'request' so the expert can provide the right guidance.
+    """
+    """
+    (这段文字很重要，LLM会识别这段文字作为这个工具的描述，相当于给LLM的prompt。下面我们翻一下，实际编码时建议还是使用原来的英文，这样LLM能更好的识别)
+    升级对话给到专家。如果你不能直接帮助或者用户的要求在你的权限之外，你使用它。
+    
+    用这个函数，传递用户的“请求”，这样专家就能提供正确的指导。
+    """
+
+    request: str
+
+
+tool = TavilySearchResults(max_results=2)
+tools = [tool]
+llm = ChatAnthropic(model="claude-3-5-sonnet-20240620")
+# We can bind the llm to a tool definition, a pydantic model, or a json schema
+llm_with_tools = llm.bind_tools(tools + [RequestAssistance])
+
+
+def chatbot(state: State):
+    response = llm_with_tools.invoke(state["messages"])
+    ask_human = False
+    if (
+        response.tool_calls
+        and response.tool_calls[0]["name"] == RequestAssistance.__name__
+    ):
+        ask_human = True
+    return {"messages": [response], "ask_human": ask_human}
+
+
+graph_builder = StateGraph(State)
+
+graph_builder.add_node("chatbot", chatbot)
+graph_builder.add_node("tools", ToolNode(tools=[tool]))
+
+
+def create_response(response: str, ai_message: AIMessage):
+    return ToolMessage(
+        content=response,
+        tool_call_id=ai_message.tool_calls[0]["id"],
+    )
+
+
+def human_node(state: State):
+    new_messages = []
+    if not isinstance(state["messages"][-1], ToolMessage):
+        # Typically, the user will have updated the state during the interrupt.
+        # If they choose not to, we will include a placeholder ToolMessage to
+        # let the LLM continue.
+        new_messages.append(
+            create_response("No response from human.", state["messages"][-1])
+        )
+    return {
+        # Append the new messages
+        "messages": new_messages,
+        # Unset the flag
+        "ask_human": False,
+    }
+
+
+graph_builder.add_node("human", human_node)
+
+
+def select_next_node(state: State):
+    if state["ask_human"]:
+        return "human"
+    # Otherwise, we can route as before
+    return tools_condition(state)
+
+
+graph_builder.add_conditional_edges(
+    "chatbot",
+    select_next_node,
+    {"human": "human", "tools": "tools", "__end__": "__end__"},
+)
+graph_builder.add_edge("tools", "chatbot")
+graph_builder.add_edge("human", "chatbot")
+graph_builder.set_entry_point("chatbot")
+memory = MemorySaver()
+graph = graph_builder.compile(
+    checkpointer=memory,
+    interrupt_before=["human"],
+)
+```
+
