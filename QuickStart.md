@@ -5,9 +5,9 @@
 - 保持在调用中的对话状态（state)
 - 传送复杂的查询给人工审查
 - 用自定义的状态state控制它的行为
-- 回溯和探索其他(可选)的对话路径
+- 回溯和探索其他备选的对话路径
 
-我们将一路从一个基本的聊天机器人开始，逐步增加更复杂的功能，引入关键的LangGraph概念。
+我们将从一个基本的聊天机器人开始，逐步增加更复杂的功能，引入关键的LangGraph概念。
 
 ## 准备
 
@@ -107,11 +107,9 @@ graph_builder.add_node("chatbot", chatbot)
 接下来，我们添加一个`entry`（入口）点，这是告诉图（Graph）每次运行的时候**从哪里开始**。
 
 
-
 ```python
 graph_builder.add_edge(START, "chatbot")
 ```
-
 
 同样，设置一个`finish`（结束） 点。这是graph**"在节点运行的任何时候，你都可以结束"**的指令。
 
@@ -330,11 +328,7 @@ Recall that edges route the control flow from one node to the next. Conditional 
 
 下面，调用定义一个名为route_tools的路由函数，它用来检查聊天机器人输出的`tool_calls `。通过调用add_conditional_edges为graph提供此函数，它告诉graph每当聊天机器人节点完成检查该函数来查看下一步去。
 
-
-
 如果调用工具存在，这个条件将会发送到工具，否则结束。
-
-
 
 之后，为了更简单明了，我们将用预发布tools_condition来替换，但是首先自己来实现将会更加透彻。
 
@@ -384,9 +378,7 @@ graph = graph_builder.compile()
 
 像预建的“tools_condition”一样，如果没有工具调用，我们的函数将返回“END”字符串。当graph 识别到了`END`,就表示它没有更多的任务要完成并停止执行。因为条件能返回`END`，所以这时我们不需要明确的设置一个`finish_point`，我们的graph已经有了结束的方式。
 
-Let's visualize the graph we've built. The following function has some additional dependencies to run that are unimportant for this tutorial.
-
-为了可直观的看到我们已经创建的graph，下面的函数有一些增加的依赖来运行，这些依赖对本教程来说并不是很重要。
+为了可视化我们已经创建的graph，下面的函数有一些额外的依赖来运行，这些依赖对本教程来说并不是很重要。
 
 ```python
 from IPython.display import Image, display
@@ -400,7 +392,7 @@ except Exception:
 
 <img src=".\images\chatbot_tools_flow.png" alt="带有tools的graph流程" style="zoom:80%;" />
 
-现在我们可以问一些不在与训练过的数据的相关问题了。
+现在我们可以问一些不在与训练过的数据内的相关问题了。
 
 ```python
 while True:
@@ -518,11 +510,7 @@ graph = graph_builder.compile()
 ## Part 3: 给聊天机器人添加记忆功能
 官方文档：[第三章、给机器人添加记忆功能](https://langchain-ai.github.io/langgraph/tutorials/introduction/#part-3-adding-memory-to-the-chatbot)
 
-
-
 现在，我们的机器人能用工具回答用户的问题了，但是它还不能记住上一个对话的上下文。这限制了它的连贯能力、多轮对话能力。
-
-
 
 LangGraph 为了解决这一问题抛出了 **persistent checkpointing(保持切入点)**的概念。如果当你在编译graph时提供了一个`checkpointer`(切入点)和你调用graph的时候添加一个`thread_id`（线程id）,LangGraph会在每一个步骤之后自动保存当前状态state.当你再次调用graph的时候，使用同样的`thrad_id`(线程id)，graph会加载它自己保存的状态，允许聊天机器人从断开的地方重新开始。
 
@@ -690,7 +678,6 @@ I apologize, but I don't have any previous context or memory of your name. As an
 到目前为止，我们已经在不同的线程上创建了一些checkpoints(切入点或检查点)。但是是什么进入到了checkpoint？为了随时检查config给graph的状态state，调用`get_state(config)`方法看看。
 
 
-
 ```python
 snapshot = graph.get_state(config)
 snapshot
@@ -770,11 +757,7 @@ graph = graph_builder.compile(checkpointer=memory)
 
 Agent可能变得不靠谱且有时候需要人工输入才能成功的完成任务。同样，对有些执行动作（action），在运行前你可能需要人工审批来确保能按照计划运行。
 
-
-
 LangGraph以多种形式支持这种`human-in-the-loop（人工参与）`的工作流程 。这本章节、我们将用LangGraph的`interrupt_before`函数来中断工具节点。
-
-
 
 首先，利用我们已经存在的代码。下面这段代码都复制于Part 3。
 
@@ -1426,15 +1409,12 @@ class State(TypedDict):
 **API 参考:** [ChatAnthropic](https://python.langchain.com/api_reference/anthropic/chat_models/langchain_anthropic.chat_models.ChatAnthropic.html) | [TavilySearchResults](https://python.langchain.com/api_reference/community/tools/langchain_community.tools.tavily_search.tool.TavilySearchResults.html) | [MemorySaver](https://langchain-ai.github.io/langgraph/reference/checkpoints/#langgraph.checkpoint.memory.MemorySaver) | [StateGraph](https://langchain-ai.github.io/langgraph/reference/graphs/#langgraph.graph.state.StateGraph) | [START](https://langchain-ai.github.io/langgraph/reference/constants/#langgraph.constants.START) | [add_messages](https://langchain-ai.github.io/langgraph/reference/graphs/#langgraph.graph.message.add_messages) | [ToolNode](https://langchain-ai.github.io/langgraph/reference/prebuilt/#langgraph.prebuilt.tool_node.ToolNode) | [tools_condition](https://langchain-ai.github.io/langgraph/reference/prebuilt/#langgraph.prebuilt.tool_node.tools_condition)
 
 
-
 下面，我们定义了一个约束类（Pydantic定义的class）来展示模型，让它来决定请求协助。
-
 
 
 **在langchian中使用Pydantic**
 
 > This notebook uses Pydantic v2 `BaseModel`, which requires `langchain-core >= 0.3`. Using `langchain-core < 0.3` will result in errors due to mixing of Pydantic v1 and v2 `BaseModels`.
-
 
 
 ```python
@@ -1449,8 +1429,6 @@ class RequestAssistance(BaseModel):
 
     request: str
 ```
-
-
 
 下一步，定义chatbot节点。如果我们想看聊天机器人调用`RequestAssistance` 标记，那主要的修改就是切换`ask_human` 标记。
 
@@ -1481,7 +1459,6 @@ graph_builder = StateGraph(State)
 graph_builder.add_node("chatbot", chatbot)
 graph_builder.add_node("tools", ToolNode(tools=[tool]))
 ```
-
 
 
 下一步，创建一个“human”节点。这个节点函数在我们的graph中主要是占位符的作用，用来触发一个中断。如果在中断（`interrupt`）期间**不**手动修改state，它将插入一个工具message(ToolMessage)，这样LLM才知道用户请求了但是没有响应。这个节点也没有重置`ask_human`标记，所以graph知道不重新访问该节点，除非有更进一步的请求被创建。
@@ -1838,4 +1815,424 @@ graph = graph_builder.compile(
     interrupt_before=["human"],
 )
 ```
+
+## Part 7: 时间旅行
+
+[参考资料：Time Travel](https://langchain-ai.github.io/langgraph/tutorials/introduction/#part-7-time-travel)
+
+
+
+### 本章总结：（译者注：非源文档）
+
+>  什么是时间旅行？
+>
+> 时间旅行就是在graph运行的步骤中或运行后，用户根据自己的逻辑，选择并记录一个state作为切入点。后面传入这个state的config继续从此执行(replay)。
+>
+> 注意：
+>
+> 1. 选择并记录的state也可以在整个graph执行完成后，通过`graph.get_state_history(config)` 获取。
+> 2. 继续执行时（replay)的开始节点通过传入config参数控制，代码`graph.stream(None, to_replay.config, stream_mode="values")`。`to_replay`就是我们第一步中自己记录下来的state。
+>
+> 实现原理：
+>
+> 我们记录的状态`to_replay.config`包含一个checkpoint_id值，这个值就能与之前graph持久化的state进行匹配，就以此作为开始节点继续运行。
+
+
+
+在典型的聊天机器人工作流程中，用户和机器人交互1次或多次来完成任务。在前面几章，我们知道怎样添加记忆和"人工参与"，以便能检查我们graph的状态和人工覆盖状态来控制未来的响应。
+
+但是如果你想让你的用户从上一个响应中开始，然后"分支"去搜索一个单独的结果呢？或者你想用户能够”岔开“你的助手的工作来覆盖一些错误或尝试不同的策略（常见于自主软件工程师应用中）。
+
+你可以用LangGraph内置的”时间旅行“函数，创建这些或更多的体验。
+
+
+
+在这小节，你将通过graph的`get_state_history` 方法获取一个检查点来 ”回溯“你的graph。然后你可以在之前的时间点继续执行。
+
+首先，回想下我们之前的聊天机器人graph。我们不需要在之前的基础上做任何改变。
+
+```python
+from typing import Annotated, Literal
+
+from langchain_anthropic import ChatAnthropic
+from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_core.messages import AIMessage, ToolMessage
+
+# NOTE: you must use langchain-core >= 0.3 with Pydantic v2
+from pydantic import BaseModel
+from typing_extensions import TypedDict
+
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import StateGraph, START
+from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode, tools_condition
+
+
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+    # This flag is new
+    ask_human: bool
+
+
+class RequestAssistance(BaseModel):
+    """Escalate the conversation to an expert. Use this if you are unable to assist directly or if the user requires support beyond your permissions.
+
+    To use this function, relay the user's 'request' so the expert can provide the right guidance.
+    """
+
+    request: str
+
+
+tool = TavilySearchResults(max_results=2)
+tools = [tool]
+llm = ChatAnthropic(model="claude-3-5-sonnet-20240620")
+# We can bind the llm to a tool definition, a pydantic model, or a json schema
+llm_with_tools = llm.bind_tools(tools + [RequestAssistance])
+
+
+def chatbot(state: State):
+    response = llm_with_tools.invoke(state["messages"])
+    ask_human = False
+    if (
+        response.tool_calls
+        and response.tool_calls[0]["name"] == RequestAssistance.__name__
+    ):
+        ask_human = True
+    return {"messages": [response], "ask_human": ask_human}
+
+
+graph_builder = StateGraph(State)
+
+graph_builder.add_node("chatbot", chatbot)
+graph_builder.add_node("tools", ToolNode(tools=[tool]))
+
+
+def create_response(response: str, ai_message: AIMessage):
+    return ToolMessage(
+        content=response,
+        tool_call_id=ai_message.tool_calls[0]["id"],
+    )
+
+
+def human_node(state: State):
+    new_messages = []
+    if not isinstance(state["messages"][-1], ToolMessage):
+        # Typically, the user will have updated the state during the interrupt.
+        # If they choose not to, we will include a placeholder ToolMessage to
+        # let the LLM continue.
+        new_messages.append(
+            create_response("No response from human.", state["messages"][-1])
+        )
+    return {
+        # Append the new messages
+        "messages": new_messages,
+        # Unset the flag
+        "ask_human": False,
+    }
+
+
+graph_builder.add_node("human", human_node)
+
+
+def select_next_node(state: State):
+    if state["ask_human"]:
+        return "human"
+    # Otherwise, we can route as before
+    return tools_condition(state)
+
+
+graph_builder.add_conditional_edges(
+    "chatbot",
+    select_next_node,
+    {"human": "human", "tools": "tools", END: END},
+)
+graph_builder.add_edge("tools", "chatbot")
+graph_builder.add_edge("human", "chatbot")
+graph_builder.add_edge(START, "chatbot")
+memory = MemorySaver()
+graph = graph_builder.compile(
+    checkpointer=memory,
+    interrupt_before=["human"],
+)
+```
+
+**API 参考:** [ChatAnthropic](https://python.langchain.com/api_reference/anthropic/chat_models/langchain_anthropic.chat_models.ChatAnthropic.html) | [TavilySearchResults](https://python.langchain.com/api_reference/community/tools/langchain_community.tools.tavily_search.tool.TavilySearchResults.html) | [AIMessage](https://python.langchain.com/api_reference/core/messages/langchain_core.messages.ai.AIMessage.html) | [ToolMessage](https://python.langchain.com/api_reference/core/messages/langchain_core.messages.tool.ToolMessage.html) | [MemorySaver](https://langchain-ai.github.io/langgraph/reference/checkpoints/#langgraph.checkpoint.memory.MemorySaver) | [StateGraph](https://langchain-ai.github.io/langgraph/reference/graphs/#langgraph.graph.state.StateGraph) | [START](https://langchain-ai.github.io/langgraph/reference/constants/#langgraph.constants.START) | [add_messages](https://langchain-ai.github.io/langgraph/reference/graphs/#langgraph.graph.message.add_messages) | [ToolNode](https://langchain-ai.github.io/langgraph/reference/prebuilt/#langgraph.prebuilt.tool_node.ToolNode) | [tools_condition](https://langchain-ai.github.io/langgraph/reference/prebuilt/#langgraph.prebuilt.tool_node.tools_condition)
+
+```python
+from IPython.display import Image, display
+
+try:
+    display(Image(graph.get_graph().draw_mermaid_png()))
+except Exception:
+    # This requires some extra dependencies and is optional
+    pass
+```
+
+<img src=".\images\custmizing_state.png" style="zoom:60%;" />
+
+让我们的graph执行几步。每一步都将记录在它自己的状态历史中:
+
+```python
+config = {"configurable": {"thread_id": "1"}}
+events = graph.stream(
+    {
+        "messages": [
+            ("user", "I'm learning LangGraph. Could you do some research on it for me?")
+        ]
+    },
+    config,
+    stream_mode="values",
+)
+for event in events:
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
+```
+
+```
+================================[1m Human Message [0m=================================
+
+I'm learning LangGraph. Could you do some research on it for me?
+==================================[1m Ai Message [0m==================================
+
+[{'text': "Certainly! I'd be happy to research LangGraph for you. To get the most up-to-date and accurate information, I'll use the Tavily search function to gather details about LangGraph. Let me do that for you now.", 'type': 'text'}, {'id': 'toolu_019HPZEw6v1eSLBXnwxk6MZm', 'input': {'query': 'LangGraph framework for language models'}, 'name': 'tavily_search_results_json', 'type': 'tool_use'}]
+Tool Calls:
+  tavily_search_results_json (toolu_019HPZEw6v1eSLBXnwxk6MZm)
+ Call ID: toolu_019HPZEw6v1eSLBXnwxk6MZm
+  Args:
+    query: LangGraph framework for language models
+=================================[1m Tool Message [0m=================================
+Name: tavily_search_results_json
+
+[{"url": "https://medium.com/@cplog/introduction-to-langgraph-a-beginners-guide-14f9be027141", "content": "LangGraph is a powerful tool for building stateful, multi-actor applications with Large Language Models (LLMs). It extends the LangChain library, allowing you to coordinate multiple chains (or ..."}, {"url": "https://towardsdatascience.com/from-basics-to-advanced-exploring-langgraph-e8c1cf4db787", "content": "LangChain is one of the leading frameworks for building applications powered by Lardge Language Models. With the LangChain Expression Language (LCEL), defining and executing step-by-step action sequences — also known as chains — becomes much simpler. In more technical terms, LangChain allows us to create DAGs (directed acyclic graphs)."}]
+==================================[1m Ai Message [0m==================================
+
+Thank you for your patience. I've gathered some information about LangGraph for you. Let me summarize the key points:
+
+1. What is LangGraph?
+   LangGraph is a powerful tool designed for building stateful, multi-actor applications using Large Language Models (LLMs). It's an extension of the LangChain library, which is already a popular framework for developing LLM-powered applications.
+
+2. Purpose and Functionality:
+   - LangGraph allows developers to coordinate multiple chains or actors within a single application.
+   - It enhances the capabilities of LangChain by introducing more complex, stateful workflows.
+
+3. Relation to LangChain:
+   - LangGraph builds upon LangChain, which is one of the leading frameworks for creating LLM-powered applications.
+   - LangChain itself uses the LangChain Expression Language (LCEL) to define and execute step-by-step action sequences, also known as chains.
+   - LangChain allows the creation of DAGs (Directed Acyclic Graphs), which represent the flow of operations in an application.
+
+4. Key Features:
+   - Stateful Applications: Unlike simple query-response models, LangGraph allows the creation of applications that maintain state across interactions.
+   - Multi-Actor Systems: It supports coordinating multiple AI "actors" or components within a single application, enabling more complex interactions and workflows.
+
+5. Use Cases:
+   While not explicitly mentioned in the search results, LangGraph is typically used for creating more sophisticated AI applications such as:
+   - Multi-turn conversational agents
+   - Complex task-planning systems
+   - Applications requiring memory and context management across multiple steps or actors
+
+Learning LangGraph can be a valuable skill, especially if you're interested in developing advanced applications with LLMs that go beyond simple question-answering or text generation tasks. It allows for the creation of more dynamic, interactive, and stateful AI systems.
+
+Is there any specific aspect of LangGraph you'd like to know more about, or do you have any questions about how it compares to or works with LangChain?
+```
+
+```python
+events = graph.stream(
+    {
+        "messages": [
+            ("user", "Ya that's helpful. Maybe I'll build an autonomous agent with it!")
+        ]
+    },
+    config,
+    stream_mode="values",
+)
+for event in events:
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
+```
+
+```tex
+================================[1m Human Message [0m=================================
+
+Ya that's helpful. Maybe I'll build an autonomous agent with it!
+==================================[1m Ai Message [0m==================================
+
+[{'text': "That's an excellent idea! Building an autonomous agent with LangGraph is a great way to explore its capabilities and learn about advanced AI application development. LangGraph's features make it well-suited for creating autonomous agents. Let me provide some additional insights and encouragement for your project.", 'type': 'text'}, {'id': 'toolu_017t6BS5rNCzFWcpxRizDKjE', 'input': {'query': 'building autonomous agents with LangGraph examples and tutorials'}, 'name': 'tavily_search_results_json', 'type': 'tool_use'}]
+Tool Calls:
+  tavily_search_results_json (toolu_017t6BS5rNCzFWcpxRizDKjE)
+ Call ID: toolu_017t6BS5rNCzFWcpxRizDKjE
+  Args:
+    query: building autonomous agents with LangGraph examples and tutorials
+=================================[1m Tool Message [0m=================================
+Name: tavily_search_results_json
+
+[{"url": "https://medium.com/@lucas.dahan/hands-on-langgraph-building-a-multi-agent-assistant-06aa68ed942f", "content": "Building the Graph. With our agents defined, we'll create a graph.py file to orchestrate their interactions. The basic graph structure in LangGraph is really simple, here we are going to use ..."}, {"url": "https://medium.com/@cplog/building-tool-calling-conversational-ai-with-langchain-and-langgraph-a-beginners-guide-8d6986cc589e", "content": "Introduction to AI Agent with LangChain and LangGraph: A Beginner’s Guide Two powerful tools revolutionizing this field are LangChain and LangGraph. In this guide, we’ll explore how these technologies can be combined to build a sophisticated AI assistant capable of handling complex conversations and tasks. Tool calling is a standout feature in agentic design, allowing the LLM to interact with external systems or perform specific tasks via the @tool decorator. While the Assistant class presented here is one approach, the flexibility of tool calling and LangGraph allows for a wide range of designs. With LangChain and LangGraph, you can build a powerful, flexible AI assistant capable of handling complex tasks and conversations. Tool calling significantly enhances the AI’s capabilities by enabling interaction with external systems."}]
+==================================[1m Ai Message [0m==================================
+
+Your enthusiasm for building an autonomous agent with LangGraph is fantastic! This project will not only help you learn more about LangGraph but also give you hands-on experience with cutting-edge AI development. Here are some insights and tips to get you started:
+
+1. Multi-Agent Systems:
+   LangGraph excels at creating multi-agent systems. You could design your autonomous agent as a collection of specialized sub-agents, each handling different aspects of tasks or knowledge domains.
+
+2. Graph Structure:
+   The basic graph structure in LangGraph is straightforward. You'll create a graph.py file to orchestrate the interactions between your agents or components.
+
+3. Tool Calling:
+   A key feature you can incorporate is tool calling. This allows your LLM-based agent to interact with external systems or perform specific tasks. You can implement this using the @tool decorator in your code.
+
+4. Flexibility in Design:
+   LangGraph offers great flexibility in designing your agent. While there are example structures like the Assistant class, you have the freedom to create a wide range of designs tailored to your specific needs.
+
+5. Complex Conversations and Tasks:
+   Your autonomous agent can be designed to handle sophisticated conversations and complex tasks. This is where LangGraph's stateful nature really shines, allowing your agent to maintain context over extended interactions.
+
+6. Integration with LangChain:
+   Since LangGraph builds upon LangChain, you can leverage features from both. This combination allows for powerful, flexible AI assistants capable of managing intricate workflows.
+
+7. External System Interaction:
+   Consider incorporating external APIs or databases to enhance your agent's capabilities. This could include accessing real-time data, performing calculations, or interacting with other services.
+
+8. Tutorial Resources:
+   There are tutorials available that walk through the process of building AI assistants with LangChain and LangGraph. These can be excellent starting points for your project.
+
+To get started, you might want to:
+1. Set up your development environment with LangChain and LangGraph.
+2. Define the core functionalities you want your autonomous agent to have.
+3. Design the overall structure of your agent, possibly as a multi-agent system.
+4. Implement basic interactions and gradually add more complex features like tool calling and state management.
+5. Test your agent thoroughly with various scenarios to ensure robust performance.
+
+Remember, building an autonomous agent is an iterative process. Start with a basic version and progressively enhance its capabilities. This approach will help you understand the intricacies of LangGraph while creating a sophisticated AI application.
+
+Do you have any specific ideas about what kind of tasks or domain you want your autonomous agent to specialize in? This could help guide the design and implementation process.
+```
+
+现在我们已经让agent执行了几个步骤，我们能 `重播（replay）` 完整的历史状态来看清所有发生了什么。
+
+```python
+to_replay = None
+for state in graph.get_state_history(config):
+    print("Num Messages: ", len(state.values["messages"]), "Next: ", state.next)
+    print("-" * 80)
+    if len(state.values["messages"]) == 6:
+        # 我们根据状态中聊天message的数量，有点任意的选择一个特定的状态
+        # We are somewhat arbitrarily selecting a specific state based on the number of chat messages in the state.
+        to_replay = state
+```
+
+```tex
+Num Messages:  8 Next:  ()
+--------------------------------------------------------------------------------
+Num Messages:  7 Next:  ('chatbot',)
+--------------------------------------------------------------------------------
+Num Messages:  6 Next:  ('tools',)
+--------------------------------------------------------------------------------
+Num Messages:  5 Next:  ('chatbot',)
+--------------------------------------------------------------------------------
+Num Messages:  4 Next:  ('__start__',)
+--------------------------------------------------------------------------------
+Num Messages:  4 Next:  ()
+--------------------------------------------------------------------------------
+Num Messages:  3 Next:  ('chatbot',)
+--------------------------------------------------------------------------------
+Num Messages:  2 Next:  ('tools',)
+--------------------------------------------------------------------------------
+Num Messages:  1 Next:  ('chatbot',)
+--------------------------------------------------------------------------------
+Num Messages:  0 Next:  ('__start__',)
+--------------------------------------------------------------------------------
+```
+
+
+
+**注意**检查点（checkpoint）是保存到graph的每一个步骤的，这是**贯穿整个调用**，所以才能让你能”倒带“整个线程历史。我们已经挑选`to_replay`作为一个状态来从这里恢复执行。这是上面第二个graph里面的`chatbot`节点之后的状态。
+
+从这个点继续执行，下一步应该调用**action**节点。
+
+```python
+print(to_replay.next)
+print(to_replay.config)
+```
+
+```tex
+('tools',)
+{'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1ef7d094-2634-687c-8006-49ddde5b2f1c'}}
+```
+
+**注意**检查点的配置 (`to_replay.config`) 包含`checkpoint_id` **时间戳**。提供检查点的ID（`checkpoint_id` ）值，告诉LangGraph的检测点位，来在这个时间点加载状态。下面让我们试一试：
+
+```python
+# The `checkpoint_id` in the `to_replay.config` corresponds to a state we've persisted to our checkpointer.
+# 在`to_replay.config`里面的`checkpoint_id`对应我们保存到检查点的状态
+for event in graph.stream(None, to_replay.config, stream_mode="values"):
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
+```
+
+```tex
+==================================[1m Ai Message [0m==================================
+
+[{'text': "That's an excellent idea! Building an autonomous agent with LangGraph is a great way to explore its capabilities and learn about advanced AI application development. LangGraph's features make it well-suited for creating autonomous agents. Let me provide some additional insights and encouragement for your project.", 'type': 'text'}, {'id': 'toolu_017t6BS5rNCzFWcpxRizDKjE', 'input': {'query': 'building autonomous agents with LangGraph examples and tutorials'}, 'name': 'tavily_search_results_json', 'type': 'tool_use'}]
+Tool Calls:
+  tavily_search_results_json (toolu_017t6BS5rNCzFWcpxRizDKjE)
+ Call ID: toolu_017t6BS5rNCzFWcpxRizDKjE
+  Args:
+    query: building autonomous agents with LangGraph examples and tutorials
+=================================[1m Tool Message [0m=================================
+Name: tavily_search_results_json
+
+[{"url": "https://blog.langchain.dev/how-to-build-the-ultimate-ai-automation-with-multi-agent-collaboration/", "content": "Learn how to create an autonomous research assistant using LangGraph, an extension of LangChain for agent and multi-agent flows. Follow the steps to define the graph state, initialize the graph, and run the agents for planning, research, review, writing and publishing."}, {"url": "https://medium.com/@lucas.dahan/hands-on-langgraph-building-a-multi-agent-assistant-06aa68ed942f", "content": "Building the Graph. With our agents defined, we'll create a graph.py file to orchestrate their interactions. The basic graph structure in LangGraph is really simple, here we are going to use ..."}]
+==================================[1m Ai Message [0m==================================
+
+Great choice! Building an autonomous agent with LangGraph is an excellent way to dive deep into its capabilities. Based on the additional information I've found, here are some insights and steps to help you get started:
+
+1. LangGraph for Autonomous Agents:
+   LangGraph is particularly well-suited for creating autonomous agents, especially those involving multi-agent collaboration. It allows you to create complex, stateful workflows that can simulate autonomous behavior.
+
+2. Example Project: Autonomous Research Assistant
+   One popular example is building an autonomous research assistant. This type of project can help you understand the core concepts of LangGraph while creating something useful.
+
+3. Key Steps in Building an Autonomous Agent:
+   a. Define the Graph State: This involves setting up the structure that will hold the agent's state and context.
+   b. Initialize the Graph: Set up the initial conditions and parameters for your agent.
+   c. Create Multiple Agents: For a complex system, you might create several specialized agents, each with a specific role (e.g., planning, research, review, writing).
+   d. Orchestrate Interactions: Use LangGraph to manage how these agents interact and collaborate.
+
+4. Components of an Autonomous Agent:
+   - Planning Agent: Determines the overall strategy and steps.
+   - Research Agent: Gathers necessary information.
+   - Review Agent: Evaluates and refines the work.
+   - Writing Agent: Produces the final output.
+   - Publishing Agent: Handles the final distribution or application of results.
+
+5. Implementation Tips:
+   - Start with a simple graph structure in LangGraph.
+   - Define clear roles and responsibilities for each agent or component.
+   - Use LangGraph's features to manage state and context across the different stages of your agent's workflow.
+
+6. Learning Resources:
+   - Look for tutorials and examples specifically on building multi-agent systems with LangGraph.
+   - The LangChain documentation and community forums can be valuable resources, as LangGraph builds upon LangChain.
+
+7. Potential Applications:
+   - Autonomous research assistants
+   - Complex task automation systems
+   - Interactive storytelling agents
+   - Autonomous problem-solving systems
+
+Building an autonomous agent with LangGraph is an exciting project that will give you hands-on experience with advanced concepts in AI application development. It's a great way to learn about state management, multi-agent coordination, and complex workflow design in AI systems.
+
+As you embark on this project, remember to start small and gradually increase complexity. You might begin with a simple autonomous agent that performs a specific task, then expand its capabilities and add more agents or components as you become more comfortable with LangGraph.
+
+Do you have a specific type of autonomous agent in mind, or would you like some suggestions for beginner-friendly autonomous agent projects to start with?
+```
+
+注意graph是从**action**节点继续执行的。你可以说这是一个事实，因为上面控制台第一个被打印的值是来自我们搜索引擎的响应。
+
+**恭喜!**你现在已经可以用LangGraph里面的”时间旅行“ 检查点了。能利用倒带和搜索其他的路径为调试、实验和应用交互打开了一个充满可能性的世界。
+
+## 结语
+
+恭喜！你已经完成了教程学习和用LangGraph创建一个聊天机器人，它能执行工具调用，持久化记忆，人工参与交互，甚至是时间旅行。
+
+LangGraph文档是深入了解该库功能的重要资源。
 

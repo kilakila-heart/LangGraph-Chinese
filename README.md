@@ -22,7 +22,7 @@ LangGraph 的灵感来源于 [Pregel](https://research.google/pubs/pub37252/) �
 ### [关键特性](https://langchain-ai.github.io/langgraph/#key-features)
 
 - **循环和分支控制**: 在你的应用中可以实现循环和判断条件的控制.
-- **持久化**: 在graph（图）的每一个步骤中自动保存。随时暂停和恢复graph的执行，以支持错误恢复、人工介入、时间旅行（这是什么后面弄清楚）等。
+- **持久化**: 在graph（图）的每一个步骤中自动保存。随时暂停和恢复graph的执行，以支持错误恢复、人工介入、时间旅行（从指定的点重新执行）等。
 - **人工介入**: 通过agent，能够中断graph的执行来确认或者编辑下一个动作计划。
 - **流失支持**: 每一个节点都能以流式输出 (包括token的流失输出).
 - **与langchain进行整合**: LangGraph 可以和 [LangChain](https://github.com/langchain-ai/langchain/) 、 [LangSmith](https://docs.smith.langchain.com/)无缝集成 (但不是必须依赖).
