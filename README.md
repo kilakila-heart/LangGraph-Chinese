@@ -74,20 +74,18 @@ tool_node = ToolNode(tools)
 
 model = ChatAnthropic(model="claude-3-5-sonnet-20240620", temperature=0).bind_tools(tools)
 
-# Define the function that determines whether to continue or not
 # 定义一个函数确定是否继续执行
 def should_continue(state: MessagesState) -> Literal["tools", END]:
     messages = state['messages']
     last_message = messages[-1]
-    # If the LLM makes a tool call, then we route to the "tools" node
     # 如果大模型通知调用工具的时候，我们可以路由到对应的工具节点
     if last_message.tool_calls:
         return "tools"
-    # Otherwise, we stop (reply to the user) 否则，停止执行（回复用户）
+    # 否则，停止执行（回复用户）
     return END
 
 
-# Define the function that calls the model 定义一个调用大模型的函数
+# 定义一个调用大模型的函数
 def call_model(state: MessagesState):
     messages = state['messages']
     response = model.invoke(messages)
@@ -95,18 +93,18 @@ def call_model(state: MessagesState):
     return {"messages": [response]}
 
 
-# Define a new graph 定义一个图
+# 定义一个图
 workflow = StateGraph(MessagesState)
 
-# Define the two nodes we will cycle between 定义两个可以循环的节点
+# 定义两个可以循环的节点
 workflow.add_node("agent", call_model)
 workflow.add_node("tools", tool_node)
 
-# Set the entrypoint as `agent` 定义agent的入口
-# This means that this node is the first one called 这表示这是第一个被调用的节点
+# 设置agent的入口
+# 这表示这是第一个被调用的节点
 workflow.add_edge(START, "agent")
 
-# We now add a conditional edge 添加条件dege（边）
+# 添加条件边
 workflow.add_conditional_edges(
     # First, we define the start node. We use `agent`.
     # This means these are the edges taken after the `agent` node is called. 这表示这些边在`agent`节点调用之后执行
@@ -150,9 +148,52 @@ final_state["messages"][-1].content
 "Based on the search results, I can tell you that the current weather in New York City is:\n\nTemperature: 90 degrees Fahrenheit (approximately 32.2 degrees Celsius)\nConditions: Sunny\n\nThis weather is quite different from what we just saw in San Francisco. New York is experiencing much warmer temperatures right now. Here are a few points to note:\n\n1. The temperature of 90°F is quite hot, typical of summer weather in New York City.\n2. The sunny conditions suggest clear skies, which is great for outdoor activities but also means it might feel even hotter due to direct sunlight.\n3. This kind of weather in New York often comes with high humidity, which can make it feel even warmer than the actual temperature suggests.\n\nIt's interesting to see the stark contrast between San Francisco's mild, foggy weather and New York's hot, sunny conditions. This difference illustrates how varied weather can be across different parts of the United States, even on the same day.\n\nIs there anything else you'd like to know about the weather in New York or any other location?"
 ```
 
-### [逐步分解以上步骤](https://langchain-ai.github.io/langgraph/#step-by-step-breakdown)
+### 逐步分解以上步骤
+ [参考文档：Step-by-step Breakdown](https://langchain-ai.github.io/langgraph/#step-by-step-breakdown)
 
-待完成TODO
+1. **初始化大模型（model）和工具(tools)**
+
+   > - 我们用 `ChatAnthropic` 作为我们的大模型. **注意:** 我们需要确保大模型知道，它有这些工具可以调用。我们可以通过用`.bind_tools()` 方法将Langchain工具转换为OpenAI的工具调用格式来实现。.
+   > - 在上面的例子中，我们定义想使用的工具——一个搜索工具。这是很容易创建你自己的工具的——看[这里]((https://python.langchain.com/docs/modules/agents/tools/custom_tools))的文档如何创建工具。 
+
+2.  **初始化带状态(state)的图(graph)**
+
+   > - 我们通过传递预设参数state（在我们例子中的`MessagesState`）初始化graph（`StateGraph`）。
+   > - `MessagesState` 是一个预设的state参数，它只有一个属性--LangChain的`Message` 对象列表。也是合并每个节点更新内容到state的逻辑。
+
+3. **定义图（graph）的节点**
+
+   > 这里有我们需要的两个主要节点:
+   >
+   > - `agent`节点: 响应来决定采取哪些行动（如果有）。
+   > - `tools` 节点是调用工具的: 如果agent决定采取行动，这个节点将会被执行。
+
+4. **定义入口和graph的边**
+
+   > 首先，我们需要设置graph执行的入口——`agent`节点。
+   >
+   > 之后我们定义一个普通和一个条件边。条件边的意思是目的依赖graph状态 (`MessageState`)的内容。在我们的例子中，目的是未知的，直到agent（大模型）来决定。
+   >
+   > - 条件边: 在agent调用之后，我们应该:
+   >   - a. 如果agent说要采取行动就运行工具，或者
+   >   - b. 如果agent没有要求调用工具就结束（响应给用户）
+   >
+   > - 普通边：在工具被调用后，graph应该总是返回给agent来决定下一个应该做什么。
+
+5. **编译图（graph）**
+
+   > - 当我们编译graph之后，我们将它变成了一个langchain的 [Runnable](https://python.langchain.com/v0.2/docs/concepts/#runnable-interface)，就天然的能够带上输入参数调用`.invoke()`, `.stream()` 和`.batch()` 方法。
+   > - 为了在graph运行的时候保存状态，添加记忆，人工参与流程，时间旅行等等，我们也可以选择通过检查点对象。在我们的例子中，我们使用了`MemorySaver` ——一个简单的记忆检查点。
+
+6. **执行图（graph）**
+
+   > 1. LangGraph添加输入信息到内部状态state，之后传输这个state到入口"`agent`"。
+   > 2.  `"agent"`节点执行，调用大模型。
+   > 3. 大模型返回一个 `AIMessage`. LangGraph 把这个返回添加到state中.
+   > 4. Graph 根据步骤循环，直到在 `AIMessage`上没有更多的 `tool_calls`。 
+   >    - 如果`AIMessage` 有 `tool_calls`, `"tools"` 节点执行
+   >    -  `"agent"` 节点再次执行，返回 `AIMessage`
+   > 5. 执行流程到指定的 `END` 值并输出最终的状态state。并且返回一个结果，我们得到了我们的聊天信息列表作为输出。
 
 # [文档](https://langchain-ai.github.io/langgraph/#documentation)
 
