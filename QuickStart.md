@@ -512,10 +512,10 @@ graph = graph_builder.compile()
 
 现在，我们的机器人能用工具回答用户的问题了，但是它还不能记住上一个对话的上下文。这限制了它的连贯能力、多轮对话能力。
 
-LangGraph 为了解决这一问题抛出了 **persistent checkpointing(保持切入点)**的概念。如果当你在编译graph时提供了一个`checkpointer`(切入点)和你调用graph的时候添加一个`thread_id`（线程id）,LangGraph会在每一个步骤之后自动保存当前状态state.当你再次调用graph的时候，使用同样的`thrad_id`(线程id)，graph会加载它自己保存的状态，允许聊天机器人从断开的地方重新开始。
+LangGraph 为了解决这一问题抛出了 **persistent checkpointing（保持切入点）**的概念。如果当你在编译graph时提供了一个`checkpointer`(切入点)和你调用graph的时候添加一个`thread_id`（线程id）,LangGraph会在每一个步骤之后自动保存当前状态state.当你再次调用graph的时候，使用同样的`thrad_id`(线程id)，graph会加载它自己保存的状态，允许聊天机器人从断开的地方重新开始。
 
 
-我们稍后会看到切入点checkpointing比简单聊天记忆要强大得多——它能让你在任何时候保存和恢复发展的状态state，可以实现错误修复，人工介入流程，time travel（TODO注：这是什么功能？？后面研究透彻后再补充） 交互等等。但是我们在实现这些超强功能之前，先添加`checkpointing`和支持多轮对话。
+我们稍后会看到切入点checkpointing比简单聊天记忆要强大得多——它能让你在任何时候保存和恢复发展的状态state，可以实现错误修复，人工介入流程，时间旅行交互等等。但是我们在实现这些超强功能之前，先添加`checkpointing`和支持多轮对话。
 
 首先, 创建一个 `MemorySaver` 切入点.
 ```python
@@ -1179,8 +1179,6 @@ print(snapshot.next)
 
 在上面用[`add_messages`](https://langchain-ai.github.io/langgraph/reference/graphs/?h=add+messages#add_messages) 函数标注我们graph的状态，就是控制如何更新到`message`的关键。这个函数观察在新`messages`列表内的任何message ID。如何ID匹配到一个在state中已经存在的message时，[`add_messages`](https://langchain-ai.github.io/langgraph/reference/graphs/?h=add+messages#add_messages) 就用新的内容覆盖已经存在的消息。
 
-As an example, let's update the tool invocation to make sure we get good results from our search engine! First, start a new thread:z
-
 例如，让我们更新工具的调用，来确保我们从搜索引擎中获得良好的结果！首先，开启一个新的线程：
 
 ```python
@@ -1694,7 +1692,7 @@ Do you have any specific questions about LangGraph or AI agent development that 
 
 
 
-**恭喜!** 你现在为助手graph添加了一个额外的节点，让聊天机器人决定他自己是否需要中断执行。你做了这些：在编译graph的时候，更新带有`ask_human` 字段的grap状态和修改中断逻辑。这让你在循环中动态嵌入一个“人”，同时在你每次执行graph时保持**记忆（memory）**的完整。
+**恭喜!** 你现在为助手graph添加了一个额外的节点，让聊天机器人决定他自己是否需要中断执行。你做了这些：在编译graph的时候，更新带有`ask_human` 字段的grap状态和修改中断逻辑。这让你在循环中动态嵌入一个“人”，同时在你每次执行graph时保持**记忆**的完整。
 
 
 

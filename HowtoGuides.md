@@ -312,7 +312,7 @@ Receiving update from node: 'agent'
 %%capture --no-stderr
 %pip install --quiet -U langgraph langchain_openai langsmith
 ```
-Next, we need to set API keys for OpenAI (the LLM we will use).
+接着，我们需要设置OpenAI的API keys（我们使用的大模型）。
 
 ```python
 import getpass

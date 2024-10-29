@@ -1,5 +1,5 @@
 # langGraph的中文指引
-源文档地址：[原文档地址](https://langchain-ai.github.io/langgraph/)
+官方文档地址：[原文档地址](https://langchain-ai.github.io/langgraph/)
 
 langchain agent如何迁移到LangGraph：https://python.langchain.com/v0.2/docs/how_to/migrate_agent/
 
@@ -24,8 +24,8 @@ LangGraph 的灵感来源于 [Pregel](https://research.google/pubs/pub37252/) �
 - **循环和分支控制**: 在你的应用中可以实现循环和判断条件的控制.
 - **持久化**: 在graph（图）的每一个步骤中自动保存。随时暂停和恢复graph的执行，以支持错误恢复、人工介入、时间旅行（从指定的点重新执行）等。
 - **人工介入**: 通过agent，能够中断graph的执行来确认或者编辑下一个动作计划。
-- **流失支持**: 每一个节点都能以流式输出 (包括token的流失输出).
-- **与langchain进行整合**: LangGraph 可以和 [LangChain](https://github.com/langchain-ai/langchain/) 、 [LangSmith](https://docs.smith.langchain.com/)无缝集成 (但不是必须依赖).
+- **流式支持**: 每一个节点都能以流式输出 (包括token的流式输出).
+- **与langchain进行整合**: LangGraph可以和 [LangChain](https://github.com/langchain-ai/langchain/) 、 [LangSmith](https://docs.smith.langchain.com/)无缝集成 (但不是必须依赖).
 
 ## **初始化**
 
@@ -119,7 +119,7 @@ workflow.add_conditional_edges(
 workflow.add_edge("tools", 'agent')
 
 # Initialize memory to persist state between graph runs
-# 初始化内从以保存graph之间的允许
+# 初始化内从以保存graph之间的运行
 checkpointer = MemorySaver()
 
 # Finally, we compile it!
@@ -139,7 +139,7 @@ final_state["messages"][-1].content
 ```
 
 现在我们放入同样的`"thread_id"`，上下文对话记录通过保存状态state记忆下来（即存储在消息列表中）
-```
+```python
 final_state = app.invoke(
     {"messages": [HumanMessage(content="what about ny")]},
     config={"configurable": {"thread_id": 42}}
@@ -158,8 +158,8 @@ final_state["messages"][-1].content
 
 2.  **初始化带状态(state)的图(graph)**
 
-   > - 我们通过传递预设参数state（在我们例子中的`MessagesState`）初始化graph（`StateGraph`）。
-   > - `MessagesState` 是一个预设的state参数，它只有一个属性--LangChain的`Message` 对象列表。也是合并每个节点更新内容到state的逻辑。
+    > - 我们通过传递预设参数state（在我们例子中的`MessagesState`）初始化graph（`StateGraph`）。
+    > - `MessagesState` 是一个预设的state参数，它只有一个属性--LangChain的`Message` 对象列表。也是合并每个节点更新内容到state的逻辑。
 
 3. **定义图（graph）的节点**
 
@@ -188,11 +188,11 @@ final_state["messages"][-1].content
 6. **执行图（graph）**
 
    > 1. LangGraph添加输入信息到内部状态state，之后传输这个state到入口"`agent`"。
-   > 2.  `"agent"`节点执行，调用大模型。
+   > 2. `"agent"`节点执行，调用大模型。
    > 3. 大模型返回一个 `AIMessage`. LangGraph 把这个返回添加到state中.
    > 4. Graph 根据步骤循环，直到在 `AIMessage`上没有更多的 `tool_calls`。 
    >    - 如果`AIMessage` 有 `tool_calls`, `"tools"` 节点执行
-   >    -  `"agent"` 节点再次执行，返回 `AIMessage`
+   >    - `"agent"` 节点再次执行，返回 `AIMessage`
    > 5. 执行流程到指定的 `END` 值并输出最终的状态state。并且返回一个结果，我们得到了我们的聊天信息列表作为输出。
 
 # [文档](https://langchain-ai.github.io/langgraph/#documentation)
