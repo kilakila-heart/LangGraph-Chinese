@@ -26,17 +26,69 @@
 
 - [Hierarchical Teams](https://langchain-ai.github.io/langgraph/tutorials/multi_agent/hierarchical_agent_teams/): 编排嵌套的agent团队来解决问题
 
-  
+## RAG[¶](https://langchain-ai.github.io/langgraph/tutorials/#rag)
 
-未完成
+- [Agentic RAG](https://langchain-ai.github.io/langgraph/tutorials/rag/langgraph_agentic_rag/): Use an agent to figure out how to retrieve the most relevant information before using the retrieved information to answer the user's question.
 
-RAG
+- Adaptive RAG
 
-  - Adaptive RAG
-  	- Adaptive RAG using local LLMs
-  -  Agentic RAG
-  -  Corrective RAG
-  -  Corrective RAG using local LLMs
-  -  Self-RAG
-  -  Self-RAG using local LLMs
-  -  SQL Agent
+  : Adaptive RAG is a strategy for RAG that unites (1) query analysis with (2) active / self-corrective RAG. Implementation of:
+
+   
+
+  https://arxiv.org/abs/2403.14403
+
+  - For a version that uses a local LLM: [Adaptive RAG using local LLMs](https://langchain-ai.github.io/langgraph/tutorials/rag/langgraph_adaptive_rag_local/)
+
+- Corrective RAG
+
+  : Uses an LLM to grade the quality of the retrieved information from the given source, and if the quality is low, it will try to retrieve the information from another source. Implementation of:
+
+   
+
+  https://arxiv.org/pdf/2401.15884.pdf
+
+  - For a version that uses a local LLM: [Corrective RAG using local LLMs](https://langchain-ai.github.io/langgraph/tutorials/rag/langgraph_crag_local/)
+
+- Self-RAG
+
+  : Self-RAG is a strategy for RAG that incorporates self-reflection / self-grading on retrieved documents and generations. Implementation of
+
+   
+
+  https://arxiv.org/abs/2310.11511
+
+  .
+
+  - For a version that uses a local LLM: [Self-RAG using local LLMs](https://langchain-ai.github.io/langgraph/tutorials/rag/langgraph_self_rag_local/)
+
+- [SQL Agent](https://langchain-ai.github.io/langgraph/tutorials/sql-agent/): Build a SQL agent that can answer questions about a SQL database.
+
+## Agent 结构
+[参考文档：Agent Architectures](https://langchain-ai.github.io/langgraph/tutorials/#agent-architectures)
+
+### 多Agent系统
+[参考文档：Multi-Agent Systems](https://langchain-ai.github.io/langgraph/tutorials/#multi-agent-systems)
+
+- [Network](https://langchain-ai.github.io/langgraph/tutorials/multi_agent/multi-agent-collaboration/): Enable two or more agents to collaborate on a task
+- [Supervisor](https://langchain-ai.github.io/langgraph/tutorials/multi_agent/agent_supervisor/): Use an LLM to orchestrate and delegate to individual agents
+- [Hierarchical Teams](https://langchain-ai.github.io/langgraph/tutorials/multi_agent/hierarchical_agent_teams/): Orchestrate nested teams of agents to solve problems
+
+### 计划Agent
+[参考文档：Planning Agents](https://langchain-ai.github.io/langgraph/tutorials/#planning-agents)
+
+- [计划和执行](https://langchain-ai.github.io/langgraph/tutorials/plan-and-execute/plan-and-execute/): 实现了一个基础的计划和执行的agent
+- [Reasoning without Observation](https://langchain-ai.github.io/langgraph/tutorials/rewoo/rewoo/): Reduce re-planning by saving observations as variables
+- [LLMCompiler](https://langchain-ai.github.io/langgraph/tutorials/llm-compiler/LLMCompiler/): Stream and eagerly execute a DAG of tasks from a planner
+
+### Reflection & Critique[¶](https://langchain-ai.github.io/langgraph/tutorials/#reflection-critique)
+
+- [Basic Reflection](https://langchain-ai.github.io/langgraph/tutorials/reflection/reflection/): Prompt the agent to reflect on and revise its outputs
+- [Reflexion](https://langchain-ai.github.io/langgraph/tutorials/reflexion/reflexion/): Critique missing and superfluous details to guide next steps
+- [Language Agent Tree Search](https://langchain-ai.github.io/langgraph/tutorials/lats/lats/): Use reflection and rewards to drive a tree search over agents
+- [Self-Discover Agent](https://langchain-ai.github.io/langgraph/tutorials/self-discover/self-discover/): Analyze an agent that learns about its own capabilities
+
+## Evaluation[¶](https://langchain-ai.github.io/langgraph/tutorials/#evaluation)
+
+- [Agent-based](https://langchain-ai.github.io/langgraph/tutorials/chatbot-simulation-evaluation/agent-simulation-evaluation/): Evaluate chatbots via simulated user interactions
+- [In LangSmith](https://langchain-ai.github.io/langgraph/tutorials/chatbot-simulation-evaluation/langsmith-agent-simulation-evaluation/): Evaluate chatbots in LangSmith over a dialog dataset
