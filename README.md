@@ -200,7 +200,7 @@ final_state["messages"][-1].content
 - [教程](Tutorials.md):  通过学习指引的例子构建LangGraph。
 - [操作指南](HowtoGuides.md): 
   利用LangGraph中的流、添加记忆和持久化功能，利用通用的设计模式（分支、子图等等）完成特定的事情，这是一个你可以去复制和运行指定的代码片段的地方。
-- [概念导航](https://langchain-ai.github.io/langgraph/concepts/high_level/): 深入解释LangGraph背后的关键概念和原理，如节点(nodes)、边(edges)、状态(state )等。
+- [概念导航](./concepts.md): 深入解释LangGraph背后的关键概念和原理，如节点(nodes)、边(edges)、状态(state )等。
 - [API 文档](https://langchain-ai.github.io/langgraph/reference/graphs/): 
   仔细研究重要的类和方法，一些如何使用图和切入点API的简单示例，更高级的预构建组件等。
 - [云服务 (beta)](https://langchain-ai.github.io/langgraph/cloud/): 一键将LangGraph应用部署到LangGraph Cloud上。
