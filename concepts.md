@@ -31,7 +31,7 @@
 Agent是一个用大模型来决定应用程序的控制流程的系统。跟你开发的那些系统一样，他们可能会随着时间的推移变得复杂，让他们变得难以管理和扩展。例如，你可能会出现如下问题：
 
 - agent有太多的工具供其使用和工具调用下一步时做出不合理的决定
-- 下文变更更复杂，单个agent难以追踪
+- 上下文变得更复杂，单个agent难以追踪
 - 系统中需要多个专业领域（例如：策划员、研究员、数学家等等）
 
 为了应对这些，你可以考虑拆分你的应用变成多个小的，独立的并把它们构成**多agent系统**。这些独立的agent能够变得和一个大模型一个提示词一样简单，也可以变得跟 [ReAct](https://langchain-ai.github.io/langgraph/concepts/agentic_concepts/#react-implementation) agent一样复杂（等等）。
@@ -49,9 +49,9 @@ Agent是一个用大模型来决定应用程序的控制流程的系统。跟你
 这里有几种在多agent系统中的交互方式。
 
 - **网状架构**: 每一个agent能够和其他所有的agent通信交流。任何agent都能决定之后去调用其他的agent。
-- **监管架构**:  每一个agent只能和一个[监管](https://langchain-ai.github.io/langgraph/tutorials/multi_agent/agent_supervisor/)agent交互，监管agent做出确定哪一个agent应该被调用。
+- **监管架构**:  每一个agent只能和一个[监管](https://langchain-ai.github.io/langgraph/tutorials/multi_agent/agent_supervisor/)agent交互，监管agent决定哪一个agent应该被调用。
 - **监管架构 (带工具调用)**：这是一个特殊的监管结构，单个agent可以表示为工具。在这个案例中，监管agent用工具调用大模型来决定哪一个agent的工具去调用，也将这些参数传递给那些agent。
-- **分层管理架构**: 你可以定义一个包含[多层监管者](https://langchain-ai.github.io/langgraph/tutorials/multi_agent/hierarchical_agent_teams/)的多agent系统。这是监管架构的一个总体概况，允许你控制更为复杂的流程。
+- **分层管理架构**: 你可以定义一个包含[多层监管者](#hierarchical_agent_teams/)的多agent系统。这是监管架构的一个总体概况，允许你控制更为复杂的流程。
 - **自定义多agent工作流**：每一个agent只能跟子agent交互。部分流程是确定性的，只有一些代理可以决定接下来调用哪个其他代理
 
 ### 网状架构
@@ -59,7 +59,7 @@ Agent是一个用大模型来决定应用程序的控制流程的系统。跟你
 在这个结构中，agent被定义成graph的节点。每一个agent能够和其他的agent通信（多对多的连接），并且能够确定下一次应该调用哪个agent。这非常灵活，这种结构不能随着agent的增长而扩展：
 
 - 很难决定接下来哪个agent应该被调用
-- 很难确定多少[信息](https://langchain-ai.github.io/langgraph/concepts/multi_agent/#shared-message-list)应该在agent系统直接被传递
+- 很难确定多少[信息](#shared-message-list)应该在agent系统直接被传递
 
 我们建议在生产中避免使用这种体系结构，而是使用以下体系结构之一。
 
@@ -149,7 +149,9 @@ supervisor = create_react_agent(model, tools)
 
 ### 分层管理架构
 
-当你添加更多agent到你的系统中时，使用监管者架构管理它们可能变得困难。监管架构可能开始调用下一个agent做出糟糕的决定，对单个监管者架构来记录他们来说，这个上下文可能变得太复杂。换言之，你最终遇到了在最初激发多agent系统同样的问题。
+<a id="hierarchical_agent_teams"></a>
+
+当你添加更多agent到你的系统中时，使用监管者架构管理它们可能变得困难。监管架构可能调用下一个agent时做出糟糕的决定，对使用单个监管者架构来记录他们来说，这个上下文可能变得太复杂。换言之，你最终遇到了在最初激发多agent系统时同样的问题。
 为了解决这个问题，你可以设计你的系统*管理层次*，例如，你可以创建一个独立的，专门的agent管理小组，通过单独的管理者结合最高决策者来管理这个小组。
 
 ```python
@@ -266,7 +268,7 @@ builder.add_edge("agent_1", "agent_2")
 ```
 
 ## agent之间的通信
-[参考文档：](https://langchain-ai.github.io/langgraph/concepts/multi_agent/#communication-between-agents)
+[参考文档：communication-between-agents](https://langchain-ai.github.io/langgraph/concepts/multi_agent/#communication-between-agents)
 
 最重要的事情是当创建一个多agent系统时弄清楚agent如何通信。有几种不同的考虑：
 
