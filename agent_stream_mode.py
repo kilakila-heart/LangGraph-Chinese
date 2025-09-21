@@ -1,3 +1,4 @@
+# 参考：https://www.cnblogs.com/muzinan110/p/18541095
 import os
 
 # 假设 deepseek 的 LLM 类似于 langchain 的模型，可以 bind_tools
